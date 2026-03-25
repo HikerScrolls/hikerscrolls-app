@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Chicago",
+    "region": "Chciago, IL",
+    "date": "2026-03-13",
+    "description": "",
+    "template": "scrollytelling",
+    "coverImage": "images/chicago/IMG20260308145814.jpg",
+    "file": "chicago.json",
+    "lat": 41.873,
+    "lng": -87.612,
+    "stats": {
+      "distanceKm": 9.7,
+      "elevationGainM": 331
+    }
+  },
+  {
+    "name": "miami",
+    "region": "",
+    "date": "2026-03-10",
+    "description": "",
+    "template": "scrapbook",
+    "coverImage": "images/miami/IMG20250715154444.jpg",
+    "file": "miami.json",
+    "lat": 25.777,
+    "lng": -80.187,
+    "stats": {
+      "distanceKm": 6.3,
+      "elevationGainM": 77
+    }
+  }
+]

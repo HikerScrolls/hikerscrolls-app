@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HikerScrolls — Beautiful Travel Journals from Obsidian</title>
+  <meta name="description" content="Turn your Obsidian notes into stunning, shareable travel journals. AI-powered sketches, scrollytelling maps, and scrapbook layouts — all from your own data." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style-landing.css" />
+</head>
+<body>
+
+<!-- ── NAV ──────────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="#">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor">
+        <rect x="20" y="10" width="60" height="78" rx="5" stroke-width="5"/>
+        <line x1="20" y1="26" x2="80" y2="26" stroke-width="3.5"/>
+        <path d="M28 74 L46 34 L54 46 L68 28 L78 48" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      HikerScrolls
+    </a>
+    <div class="nav-links">
+      <a href="#templates">Templates</a>
+      <a href="#ai">AI Features</a>
+      <a href="#demo">Demo</a>
+      <a href="#get-started">Install</a>
+      <a href="https://github.com/rickliang-JY/HikerScrolls" target="_blank" rel="noopener">GitHub</a>
+      <a href="#demo" class="nav-cta btn">Try Demo</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── HERO ──────────────────────────────────────────────────── -->
+<section class="hero" id="hero">
+  <div class="hero-inner">
+    <div class="hero-content">
+      <div class="hero-badge">Obsidian Plugin · Free &amp; Open Source</div>
+      <h1 class="hero-title">
+        Your travels deserve<br><em>beautiful stories</em>
+      </h1>
+      <p class="hero-sub">
+        HikerScrolls turns your Obsidian trip notes into stunning, shareable travel journals — with GPX route maps, AI-generated pen sketches, and cinematic scrollytelling layouts.
+      </p>
+      <div class="hero-actions">
+        <a href="#demo" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L14 8L8 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="14" y1="8" x2="2" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Try the Demo
+        </a>
+        <a href="#get-started" class="btn btn-secondary">
+          Install Plugin
+        </a>
+      </div>
+      <div class="hero-stat-row">
+        <div class="hero-stat">
+          <div class="hero-stat-num">3</div>
+          <div class="hero-stat-label">Journal templates</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-num">AI</div>
+          <div class="hero-stat-label">Sketch &amp; layout gen</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-num">100%</div>
+          <div class="hero-stat-label">Your data, local-first</div>
+        </div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hero-mockup">
+        <div class="hero-mockup-bar">
+          <div class="hero-mockup-dot"></div>
+          <div class="hero-mockup-dot"></div>
+          <div class="hero-mockup-dot"></div>
+          <div class="hero-mockup-url">hikerscrolls.com/demo</div>
+        </div>
+        <iframe class="hero-mockup-frame" src="demo/" title="HikerScrolls Demo" loading="lazy"></iframe>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── TEMPLATES ──────────────────────────────────────────────── -->
+<section class="section templates" id="templates">
+  <div class="section-inner">
+    <span class="section-label">Templates</span>
+    <h2 class="section-title">Three ways to tell your story</h2>
+    <p class="section-sub">Choose the layout that matches your travel style. Every template includes an interactive GPX route map and AI-powered features.</p>
+
+    <div class="templates-grid">
+
+      <!-- Scrollytelling -->
+      <div class="template-card">
+        <div class="template-preview">
+          <div class="template-preview-placeholder">
+            <div style="text-align:center;padding:24px;">
+              <div style="font-size:48px;margin-bottom:8px;">🗺️</div>
+              <div style="font-weight:700;color:#2d6a4f;font-size:15px;">Scrollytelling</div>
+              <div style="font-size:13px;margin-top:4px;color:#78716c;">Cinematic route reveal</div>
+            </div>
+          </div>
+          <span class="template-badge">Classic</span>
+        </div>
+        <div class="template-body">
+          <div class="template-name">Scrollytelling</div>
+          <p class="template-desc">A cinematic scroll experience — the GPX route draws itself as you scroll, with location photos appearing at each waypoint.</p>
+          <div class="template-tags">
+            <span class="template-tag">Route animation</span>
+            <span class="template-tag">Scroll-driven</span>
+            <span class="template-tag">Location photos</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scrapbook -->
+      <div class="template-card">
+        <div class="template-preview">
+          <div class="template-preview-placeholder">
+            <div style="text-align:center;padding:24px;">
+              <div style="font-size:48px;margin-bottom:8px;">📸</div>
+              <div style="font-weight:700;color:#2d6a4f;font-size:15px;">Scrapbook</div>
+              <div style="font-size:13px;margin-top:4px;color:#78716c;">Drag &amp; arrange photos</div>
+            </div>
+          </div>
+          <span class="template-badge">Interactive</span>
+        </div>
+        <div class="template-body">
+          <div class="template-name">Scrapbook</div>
+          <p class="template-desc">Polaroid-style photo cards on a cork board. Drag, rotate, and arrange them — flip each card to reveal the AI-generated pen sketch.</p>
+          <div class="template-tags">
+            <span class="template-tag">Draggable photos</span>
+            <span class="template-tag">Polaroid flip</span>
+            <span class="template-tag">AI sketches</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Illustrated -->
+      <div class="template-card">
+        <div class="template-preview">
+          <div class="template-preview-placeholder">
+            <div style="text-align:center;padding:24px;">
+              <div style="font-size:48px;margin-bottom:8px;">✏️</div>
+              <div style="font-weight:700;color:#2d6a4f;font-size:15px;">Illustrated</div>
+              <div style="font-size:13px;margin-top:4px;color:#78716c;">Sketch &amp; photo pairing</div>
+            </div>
+          </div>
+          <span class="template-badge">Artistic</span>
+        </div>
+        <div class="template-body">
+          <div class="template-name">Illustrated</div>
+          <p class="template-desc">An elegant layout pairing photos with Gemini-generated pen illustrations. Tap a photo to zoom; double-tap to flip and reveal the sketch beneath.</p>
+          <div class="template-tags">
+            <span class="template-tag">Photo + sketch</span>
+            <span class="template-tag">Flip reveal</span>
+            <span class="template-tag">Route map</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── AI FEATURES ──────────────────────────────────────────── -->
+<section class="section" id="ai">
+  <div class="section-inner">
+    <span class="section-label">Powered by AI</span>
+    <h2 class="section-title">Intelligence built into every journal</h2>
+    <p class="section-sub">Bring your API key for Gemini or Claude. HikerScrolls uses AI to enrich your journals with artwork, context, and smart layouts.</p>
+
+    <div class="ai-grid">
+
+      <div class="ai-card">
+        <div class="ai-icon">✏️</div>
+        <div class="ai-title">Pen Sketch Generation</div>
+        <p class="ai-desc">Every photo can be transformed into a clean pen-and-ink illustration using Gemini's image generation. Sketches are saved and shown alongside the original photo.</p>
+      </div>
+
+      <div class="ai-card">
+        <div class="ai-icon">📍</div>
+        <div class="ai-title">Location Enrichment</div>
+        <p class="ai-desc">AI analyzes your photos to identify the location, look up historical context, and write a compelling travel narrative — all with one click during the journal wizard.</p>
+      </div>
+
+      <div class="ai-card">
+        <div class="ai-icon">🗂️</div>
+        <div class="ai-title">Smart Layout</div>
+        <p class="ai-desc">The AI layout engine intelligently assigns your photos and notes to journal sections, ordering them by your GPX track to preserve the natural flow of your journey.</p>
+      </div>
+
+      <div class="ai-card">
+        <div class="ai-icon">🗺️</div>
+        <div class="ai-title">EXIF GPS Mapping</div>
+        <p class="ai-desc">Upload photos with GPS metadata and the plugin automatically plots them on the route map — no manual pinning required.</p>
+      </div>
+
+      <div class="ai-card">
+        <div class="ai-icon">🌐</div>
+        <div class="ai-title">Multi-Model Support</div>
+        <p class="ai-desc">Use Gemini 2.0 Flash for vision and image generation, Claude for nuanced text analysis, and Tavily for real-time web search — all configurable in plugin settings.</p>
+      </div>
+
+      <div class="ai-card">
+        <div class="ai-icon">🔒</div>
+        <div class="ai-title">Private &amp; Local-First</div>
+        <p class="ai-desc">Your journal data lives in your Obsidian vault. AI calls go directly from your device to the respective API — no intermediary server ever sees your content.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ──────────────────────────────────────────── -->
+<section class="section how" id="how">
+  <div class="section-inner">
+    <span class="section-label">How It Works</span>
+    <h2 class="section-title">From trip to story in three steps</h2>
+    <p class="section-sub">The journal wizard walks you through everything. No design skills needed.</p>
+
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-title">Create your trip</div>
+        <p class="step-desc">Name your trip, pick a date range, upload a GPX file, and drop in your photos. The wizard handles EXIF GPS extraction automatically.</p>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-title">AI enriches the content</div>
+        <p class="step-desc">Let AI identify locations, write descriptions, generate pen sketches from photos, and arrange everything into sections ordered by your route.</p>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-title">Publish &amp; share</div>
+        <p class="step-desc">Export your journal to a standalone HTML file or deploy it to a static host. Share the link — no account or app required for viewers.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── DEMO ──────────────────────────────────────────────────── -->
+<section class="demo-section" id="demo">
+  <div class="section-inner">
+    <span class="section-label">Live Demo</span>
+    <h2 class="section-title">See it in action</h2>
+    <p class="section-sub">Explore real trip journals created with HikerScrolls. Try all three templates — scroll, drag, flip, and zoom.</p>
+
+    <div class="demo-frame-wrap">
+      <div class="demo-bar">
+        <div class="demo-bar-dot"></div>
+        <div class="demo-bar-dot"></div>
+        <div class="demo-bar-dot"></div>
+        <div class="demo-url">hikerscrolls.com/demo</div>
+      </div>
+      <iframe
+        class="demo-frame"
+        src="demo/"
+        title="HikerScrolls Interactive Demo"
+        loading="lazy"
+        allow="fullscreen"
+      ></iframe>
+    </div>
+
+    <div class="demo-cta">
+      <a href="demo/" target="_blank" class="btn btn-outline-white">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="margin-right:4px"><path d="M2 2h10v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M2 12L12 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Open full demo in new tab
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ── GET STARTED ──────────────────────────────────────────── -->
+<section class="section" id="get-started">
+  <div class="section-inner">
+    <span class="section-label">Get Started</span>
+    <h2 class="section-title">Install in 60 seconds</h2>
+    <p class="section-sub">HikerScrolls is a community plugin for Obsidian. No external account needed to get started.</p>
+
+    <div class="install-steps">
+
+      <ul class="install-list">
+        <li class="install-item">
+          <div class="install-num">1</div>
+          <div class="install-text">Open Obsidian and go to <strong>Settings → Community Plugins → Browse</strong></div>
+        </li>
+        <li class="install-item">
+          <div class="install-num">2</div>
+          <div class="install-text">Search for <code>HikerScrolls</code> and click <strong>Install</strong></div>
+        </li>
+        <li class="install-item">
+          <div class="install-num">3</div>
+          <div class="install-text">Enable the plugin and paste your <strong>Gemini API key</strong> in the settings panel</div>
+        </li>
+        <li class="install-item">
+          <div class="install-num">4</div>
+          <div class="install-text">Click the <strong>HikerScrolls icon</strong> in the left sidebar to open the library and create your first journal</div>
+        </li>
+      </ul>
+
+      <div class="install-card">
+        <div class="install-card-title"><span class="icon">📋</span> Requirements</div>
+        <ul class="req-list">
+          <li>Obsidian v1.0 or later</li>
+          <li>Gemini API key (free tier available)</li>
+          <li>Trip photos (JPG/PNG)</li>
+          <li>GPX file from your hike or ride</li>
+          <li>Optional: Claude API key for richer text</li>
+          <li>Optional: Tavily API key for web search</li>
+        </ul>
+        <div class="install-github">
+          <a href="https://github.com/rickliang-JY/HikerScrolls" target="_blank" rel="noopener" class="btn btn-github">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            View on GitHub
+          </a>
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="btn btn-secondary" style="justify-content:center;font-size:14px;">
+            Get a free Gemini API key →
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ──────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor">
+        <rect x="20" y="10" width="60" height="78" rx="5" stroke-width="5"/>
+        <line x1="20" y1="26" x2="80" y2="26" stroke-width="3.5"/>
+        <path d="M28 74 L46 34 L54 46 L68 28 L78 48" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      HikerScrolls
+    </div>
+    <div class="footer-copy">
+      &copy; 2026 HikerScrolls &middot; Made with &#9749; for hikers &amp; wanderers
+    </div>
+    <div class="footer-links">
+      <a href="demo/">Demo</a>
+      <a href="https://github.com/rickliang-JY/HikerScrolls" target="_blank" rel="noopener">GitHub</a>
+      <a href="#get-started">Install</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

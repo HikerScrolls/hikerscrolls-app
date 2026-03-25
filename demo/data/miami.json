@@ -1,0 +1,640 @@
+{
+  "version": 5,
+  "name": "miami",
+  "description": "",
+  "region": "",
+  "date": "2026-03-10",
+  "template": "scrapbook",
+  "mapStyle": "opentopomap",
+  "stats": {
+    "distanceKm": 6.3,
+    "elevationGainM": 77,
+    "elevationLossM": 76
+  },
+  "gpxTrack": [
+    {
+      "lat": 25.770423,
+      "lng": -80.191108,
+      "ele": 17.25
+    },
+    {
+      "lat": 25.770192,
+      "lng": -80.189174,
+      "ele": 13.25
+    },
+    {
+      "lat": 25.770835,
+      "lng": -80.187353,
+      "ele": 4.25
+    },
+    {
+      "lat": 25.772723,
+      "lng": -80.185033,
+      "ele": 9.5
+    },
+    {
+      "lat": 25.773126,
+      "lng": -80.185078,
+      "ele": 12
+    },
+    {
+      "lat": 25.773381,
+      "lng": -80.185385,
+      "ele": 10.75
+    },
+    {
+      "lat": 25.774108,
+      "lng": -80.185337,
+      "ele": 12.5
+    },
+    {
+      "lat": 25.774488,
+      "lng": -80.185126,
+      "ele": 12
+    },
+    {
+      "lat": 25.775902,
+      "lng": -80.184914,
+      "ele": 11.25
+    },
+    {
+      "lat": 25.776534,
+      "lng": -80.184647,
+      "ele": 11.25
+    },
+    {
+      "lat": 25.776683,
+      "lng": -80.184468,
+      "ele": 11.25
+    },
+    {
+      "lat": 25.776991,
+      "lng": -80.184268,
+      "ele": 9.5
+    },
+    {
+      "lat": 25.776583,
+      "lng": -80.184504,
+      "ele": 11
+    },
+    {
+      "lat": 25.776418,
+      "lng": -80.184671,
+      "ele": 10.75
+    },
+    {
+      "lat": 25.775983,
+      "lng": -80.185229,
+      "ele": 10.25
+    },
+    {
+      "lat": 25.775957,
+      "lng": -80.185703,
+      "ele": 12.25
+    },
+    {
+      "lat": 25.77552,
+      "lng": -80.186652,
+      "ele": 13.25
+    },
+    {
+      "lat": 25.775346,
+      "lng": -80.18701,
+      "ele": 15.5
+    },
+    {
+      "lat": 25.777113,
+      "lng": -80.187682,
+      "ele": 14
+    },
+    {
+      "lat": 25.77722,
+      "lng": -80.187473,
+      "ele": 12.5
+    },
+    {
+      "lat": 25.77717,
+      "lng": -80.187,
+      "ele": 13.25
+    },
+    {
+      "lat": 25.777298,
+      "lng": -80.186884,
+      "ele": 13.25
+    },
+    {
+      "lat": 25.777817,
+      "lng": -80.186631,
+      "ele": 12.25
+    },
+    {
+      "lat": 25.778295,
+      "lng": -80.186663,
+      "ele": 10
+    },
+    {
+      "lat": 25.77977,
+      "lng": -80.186702,
+      "ele": 11
+    },
+    {
+      "lat": 25.779894,
+      "lng": -80.187118,
+      "ele": 11
+    },
+    {
+      "lat": 25.779722,
+      "lng": -80.188317,
+      "ele": 11.5
+    },
+    {
+      "lat": 25.779634,
+      "lng": -80.188524,
+      "ele": 11.5
+    },
+    {
+      "lat": 25.779882,
+      "lng": -80.188497,
+      "ele": 11.75
+    },
+    {
+      "lat": 25.779997,
+      "lng": -80.188728,
+      "ele": 11.75
+    },
+    {
+      "lat": 25.780284,
+      "lng": -80.188797,
+      "ele": 12.5
+    },
+    {
+      "lat": 25.781464,
+      "lng": -80.189177,
+      "ele": 11.75
+    },
+    {
+      "lat": 25.782067,
+      "lng": -80.189207,
+      "ele": 10.75
+    },
+    {
+      "lat": 25.782349,
+      "lng": -80.188807,
+      "ele": 10.25
+    },
+    {
+      "lat": 25.783082,
+      "lng": -80.18808,
+      "ele": 9
+    },
+    {
+      "lat": 25.783222,
+      "lng": -80.185348,
+      "ele": 0
+    },
+    {
+      "lat": 25.783883,
+      "lng": -80.18564,
+      "ele": 0
+    },
+    {
+      "lat": 25.784344,
+      "lng": -80.185365,
+      "ele": 0
+    },
+    {
+      "lat": 25.785051,
+      "lng": -80.185687,
+      "ele": 7.75
+    },
+    {
+      "lat": 25.785467,
+      "lng": -80.185688,
+      "ele": 0
+    },
+    {
+      "lat": 25.786759,
+      "lng": -80.185532,
+      "ele": 8.75
+    },
+    {
+      "lat": 25.78608,
+      "lng": -80.185582,
+      "ele": 6.25
+    },
+    {
+      "lat": 25.785923,
+      "lng": -80.185572,
+      "ele": 5.75
+    },
+    {
+      "lat": 25.785713,
+      "lng": -80.18575,
+      "ele": 7
+    },
+    {
+      "lat": 25.785479,
+      "lng": -80.186356,
+      "ele": 8.25
+    },
+    {
+      "lat": 25.785055,
+      "lng": -80.187281,
+      "ele": 8
+    },
+    {
+      "lat": 25.784763,
+      "lng": -80.18843,
+      "ele": 9.75
+    },
+    {
+      "lat": 25.784897,
+      "lng": -80.189086,
+      "ele": 8.75
+    },
+    {
+      "lat": 25.785405,
+      "lng": -80.188996,
+      "ele": 9
+    },
+    {
+      "lat": 25.785592,
+      "lng": -80.188936,
+      "ele": 9.25
+    },
+    {
+      "lat": 25.785031,
+      "lng": -80.189052,
+      "ele": 9
+    },
+    {
+      "lat": 25.785023,
+      "lng": -80.1894,
+      "ele": 9.5
+    },
+    {
+      "lat": 25.784957,
+      "lng": -80.189521,
+      "ele": 9.5
+    },
+    {
+      "lat": 25.784958,
+      "lng": -80.189688,
+      "ele": 10
+    },
+    {
+      "lat": 25.784914,
+      "lng": -80.1905,
+      "ele": 11.5
+    },
+    {
+      "lat": 25.784915,
+      "lng": -80.19057,
+      "ele": 11.75
+    },
+    {
+      "lat": 25.783981,
+      "lng": -80.190505,
+      "ele": 7.75
+    },
+    {
+      "lat": 25.783824,
+      "lng": -80.19052,
+      "ele": 7.75
+    },
+    {
+      "lat": 25.782926,
+      "lng": -80.190494,
+      "ele": 9.25
+    },
+    {
+      "lat": 25.782023,
+      "lng": -80.190449,
+      "ele": 10
+    },
+    {
+      "lat": 25.781402,
+      "lng": -80.190436,
+      "ele": 10
+    },
+    {
+      "lat": 25.780992,
+      "lng": -80.190422,
+      "ele": 10.25
+    },
+    {
+      "lat": 25.780124,
+      "lng": -80.190393,
+      "ele": 16.5
+    },
+    {
+      "lat": 25.77999,
+      "lng": -80.190387,
+      "ele": 17.75
+    },
+    {
+      "lat": 25.779291,
+      "lng": -80.19033,
+      "ele": 18.5
+    },
+    {
+      "lat": 25.779211,
+      "lng": -80.190393,
+      "ele": 18.75
+    },
+    {
+      "lat": 25.779171,
+      "lng": -80.190434,
+      "ele": 19
+    },
+    {
+      "lat": 25.779147,
+      "lng": -80.191185,
+      "ele": 19.75
+    },
+    {
+      "lat": 25.779095,
+      "lng": -80.192005,
+      "ele": 19.5
+    },
+    {
+      "lat": 25.779097,
+      "lng": -80.192113,
+      "ele": 19.5
+    },
+    {
+      "lat": 25.779077,
+      "lng": -80.191977,
+      "ele": 19.75
+    },
+    {
+      "lat": 25.778865,
+      "lng": -80.192024,
+      "ele": 21.25
+    },
+    {
+      "lat": 25.777857,
+      "lng": -80.191932,
+      "ele": 18
+    },
+    {
+      "lat": 25.77719,
+      "lng": -80.191943,
+      "ele": 13.25
+    },
+    {
+      "lat": 25.777043,
+      "lng": -80.191927,
+      "ele": 12.75
+    },
+    {
+      "lat": 25.776193,
+      "lng": -80.191923,
+      "ele": 17
+    },
+    {
+      "lat": 25.776058,
+      "lng": -80.191928,
+      "ele": 18.25
+    },
+    {
+      "lat": 25.775229,
+      "lng": -80.191909,
+      "ele": 18.75
+    },
+    {
+      "lat": 25.775068,
+      "lng": -80.191901,
+      "ele": 18.25
+    },
+    {
+      "lat": 25.774208,
+      "lng": -80.191862,
+      "ele": 18.5
+    },
+    {
+      "lat": 25.77346,
+      "lng": -80.191843,
+      "ele": 18.5
+    },
+    {
+      "lat": 25.773357,
+      "lng": -80.191893,
+      "ele": 18.5
+    }
+  ],
+  "waypoints": [
+    {
+      "id": "loc-8",
+      "title": "Aston Martin Residences",
+      "sectionTitle": "Section 1",
+      "lat": 25.770403,
+      "lng": -80.188408,
+      "alt": null,
+      "blog": "*Write your story here...*",
+      "photos": [
+        {
+          "id": "photo-9",
+          "imageUrl": "images/miami/IMG20250715154444.jpg",
+          "title": "Photo 9"
+        }
+      ]
+    },
+    {
+      "id": "loc-9",
+      "title": "Biscayne Boulevard",
+      "sectionTitle": "Section 1",
+      "lat": 25.771301,
+      "lng": -80.185905,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-10",
+          "imageUrl": "images/miami/IMG20250715154948.jpg",
+          "title": "Photo 10"
+        }
+      ]
+    },
+    {
+      "id": "loc-10",
+      "title": "Bayfront Park DEog Park",
+      "sectionTitle": "Section 1",
+      "lat": 25.773025,
+      "lng": -80.185036,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-11",
+          "imageUrl": "images/miami/IMG20250715155502.jpg",
+          "title": "Photo 11"
+        },
+        {
+          "id": "photo-12",
+          "imageUrl": "images/miami/IMG20250715155520.jpg",
+          "title": "Photo 12"
+        }
+      ]
+    },
+    {
+      "id": "loc-11",
+      "title": "Biscayne Boulevard",
+      "sectionTitle": "Section 1",
+      "lat": 25.776237,
+      "lng": -80.184723,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-13",
+          "imageUrl": "images/miami/IMG20250715160114.jpg",
+          "title": "Photo 13"
+        }
+      ]
+    },
+    {
+      "id": "loc-3",
+      "title": "Biscayne Blvd and NE 2nd St, Miami, Florida",
+      "sectionTitle": "Section 1",
+      "lat": 25.7766,
+      "lng": -80.1884,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-3",
+          "imageUrl": "images/miami/1752617239823.jpg",
+          "title": "Photo 3"
+        }
+      ]
+    },
+    {
+      "id": "loc-2",
+      "title": "Maurice A. Ferré Park, Miami, Florida",
+      "sectionTitle": "Section 1",
+      "lat": 25.7766,
+      "lng": -80.1865,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-2",
+          "imageUrl": "images/miami/1752617229459.jpg",
+          "title": "Photo 2"
+        }
+      ]
+    },
+    {
+      "id": "loc-5",
+      "title": "Maurice A. Ferré Park seawall, Miami",
+      "sectionTitle": "Section 1",
+      "lat": 25.7775,
+      "lng": -80.1865,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-5",
+          "imageUrl": "images/miami/1752633514823.jpg",
+          "title": "Photo 5"
+        }
+      ]
+    },
+    {
+      "id": "loc-1",
+      "title": "Kaseya Center, Miami, Florida",
+      "sectionTitle": "Section 1",
+      "lat": 25.781097,
+      "lng": -80.188782,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-1",
+          "imageUrl": "images/miami/1752617181650.jpg",
+          "title": "Photo 1"
+        },
+        {
+          "id": "photo-6",
+          "imageUrl": "images/miami/1752716741805.jpg",
+          "title": "Photo 6"
+        },
+        {
+          "id": "photo-14",
+          "imageUrl": "images/miami/IMG20250715162326-7d23c70f4a21.jpg",
+          "title": "IMG20250715162326 7d23c70f4a21"
+        }
+      ]
+    },
+    {
+      "id": "loc-4",
+      "title": "Signature Bridge construction site, Miami, Florida",
+      "sectionTitle": "Section 1",
+      "lat": 25.7836,
+      "lng": -80.18815,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-4",
+          "imageUrl": "images/miami/1752633500592.jpg",
+          "title": "Photo 4"
+        },
+        {
+          "id": "photo-8",
+          "imageUrl": "images/miami/IMG_20250715_181842.jpg",
+          "title": "IMG 20250715 181842"
+        }
+      ]
+    },
+    {
+      "id": "loc-13",
+      "title": "Northeast 11th Street",
+      "sectionTitle": "Section 1",
+      "lat": 25.785225,
+      "lng": -80.185699,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-15",
+          "imageUrl": "images/miami/IMG20250715163830.jpg",
+          "title": "Photo 15"
+        }
+      ]
+    },
+    {
+      "id": "loc-6",
+      "title": "Freedom Tower Station, Miami, Florida",
+      "sectionTitle": "Section 1",
+      "lat": 25.7786,
+      "lng": -80.1893,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-7",
+          "imageUrl": "images/miami/IMG_20250715_181633.jpg",
+          "title": "IMG 20250715 181633"
+        }
+      ]
+    },
+    {
+      "id": "loc-14",
+      "title": "Northeast 1st Avenue",
+      "sectionTitle": "Section 1",
+      "lat": 25.777948,
+      "lng": -80.191933,
+      "alt": null,
+      "blog": "",
+      "photos": [
+        {
+          "id": "photo-16",
+          "imageUrl": "images/miami/IMG20250715173655.jpg",
+          "title": "Photo 16"
+        }
+      ]
+    }
+  ]
+}
