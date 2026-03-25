@@ -2202,26 +2202,32 @@ class IllustratedViewer {
         if (wrap._wasDragged) { wrap._wasDragged = false; return; }
         e.stopPropagation();
         if (_clickTimer) {
+          // Double click detected
           clearTimeout(_clickTimer); _clickTimer = null;
-          // Double click: toggle flip (CSS class handles opacity crossfade)
-          _isFlipped = !_isFlipped;
-          flipCard.classList.toggle("hj-illust-flipped", _isFlipped);
-          flipInner.style.transform = "scale(1.6)";
+          // Toggle flip
+          if (_isFlipped) {
+            _isFlipped = false;
+            flipCard.classList.remove("hj-illust-flipped");
+            flipInner.style.transform = "scale(1.6)";
+          } else {
+            _isFlipped = true;
+            flipCard.classList.add("hj-illust-flipped");
+            flipInner.style.transform = "scale(1.6)";
+          }
           wrap.style.zIndex = "200"; cardStage = "zoomed";
           this._activeIllustCard = flipCard;
           this._activeIllustCard._resetFn = resetCard;
         } else {
+          // Wait to see if it's a double click
           _clickTimer = setTimeout(() => {
             _clickTimer = null;
+            // Single click: zoom in
             if (cardStage === "normal") {
               if (this._activeIllustCard && this._activeIllustCard !== flipCard) this._activeIllustCard._resetFn();
-              flipInner.style.transform = "scale(1.6)";
+              flipInner.style.transform = _isFlipped ? "scale(1.6)" : "scale(1.6)";
               wrap.style.zIndex = "200"; cardStage = "zoomed";
               this._activeIllustCard = flipCard;
               this._activeIllustCard._resetFn = resetCard;
-            } else {
-              resetCard();
-              if (this._activeIllustCard === flipCard) this._activeIllustCard = null;
             }
           }, 250);
         }
