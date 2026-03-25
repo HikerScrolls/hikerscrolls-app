@@ -95,7 +95,16 @@
         <div class="template-preview">
           <div class="template-preview-placeholder">
             <div style="text-align:center;padding:24px;">
-              <div style="font-size:48px;margin-bottom:8px;">🗺️</div>
+              <div class="template-icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#2d6a4f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="8" y="6" width="32" height="36" rx="3"/>
+                  <path d="M16 18c4-6 12 2 16-4" opacity=".6"/>
+                  <path d="M16 26c4-4 12 4 16-2" opacity=".6"/>
+                  <circle cx="14" cy="14" r="2" fill="#2d6a4f" stroke="none"/>
+                  <circle cx="24" cy="22" r="2" fill="#52b788" stroke="none"/>
+                  <circle cx="34" cy="16" r="2" fill="#d4a853" stroke="none"/>
+                </svg>
+              </div>
               <div style="font-weight:700;color:#2d6a4f;font-size:15px;">Scrollytelling</div>
               <div style="font-size:13px;margin-top:4px;color:#78716c;">Cinematic route reveal</div>
             </div>
@@ -118,7 +127,13 @@
         <div class="template-preview">
           <div class="template-preview-placeholder">
             <div style="text-align:center;padding:24px;">
-              <div style="font-size:48px;margin-bottom:8px;">📸</div>
+              <div class="template-icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#2d6a4f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="6" y="10" width="22" height="18" rx="2" transform="rotate(-6 17 19)"/>
+                  <rect x="20" y="16" width="22" height="18" rx="2" transform="rotate(4 31 25)"/>
+                  <path d="M10 22l5-4 4 3 6-5 3 4" opacity=".5"/>
+                </svg>
+              </div>
               <div style="font-weight:700;color:#2d6a4f;font-size:15px;">Scrapbook</div>
               <div style="font-size:13px;margin-top:4px;color:#78716c;">Drag &amp; arrange photos</div>
             </div>
@@ -141,7 +156,16 @@
         <div class="template-preview">
           <div class="template-preview-placeholder">
             <div style="text-align:center;padding:24px;">
-              <div style="font-size:48px;margin-bottom:8px;">✏️</div>
+              <div class="template-icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#2d6a4f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="8" y="6" width="32" height="36" rx="3"/>
+                  <path d="M16 20c2-8 8-8 10 0s8 8 10 0" stroke-width="2"/>
+                  <path d="M14 32h20" opacity=".4"/>
+                  <path d="M14 36h14" opacity=".3"/>
+                  <circle cx="36" cy="12" r="0" fill="none"/>
+                  <path d="M34 8l6 6M37 5a2 2 0 1 1 3 3l-9 9-4 1 1-4Z" stroke-width="1.8" fill="none"/>
+                </svg>
+              </div>
               <div style="font-weight:700;color:#2d6a4f;font-size:15px;">Illustrated</div>
               <div style="font-size:13px;margin-top:4px;color:#78716c;">Sketch &amp; photo pairing</div>
             </div>
@@ -172,40 +196,103 @@
 
     <div class="ai-grid">
 
-      <div class="ai-card">
-        <div class="ai-icon">✏️</div>
+      <div class="ai-card" onclick="this.classList.toggle('ai-expanded')">
+        <div class="ai-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+            <path d="m15 5 4 4"/>
+          </svg>
+        </div>
         <div class="ai-title">Pen Sketch Generation</div>
-        <p class="ai-desc">Every photo can be transformed into a clean pen-and-ink illustration using Gemini's image generation. Sketches are saved and shown alongside the original photo.</p>
+        <p class="ai-desc">Every photo can be transformed into a clean pen-and-ink illustration using Gemini's image generation.</p>
+        <div class="ai-detail">
+          <p>Powered by <strong>Gemini 2.0 Flash</strong> image generation. Each photo is sent with a carefully tuned prompt that produces a pure white-background pen sketch in a consistent hand-drawn style.</p>
+          <p>Sketches are stored alongside the original in your vault and displayed via a flip-card interaction — tap a photo to zoom, double-tap to reveal the sketch.</p>
+        </div>
+        <span class="ai-expand-hint">Click to learn more</span>
       </div>
 
-      <div class="ai-card">
-        <div class="ai-icon">📍</div>
+      <div class="ai-card" onclick="this.classList.toggle('ai-expanded')">
+        <div class="ai-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+        </div>
         <div class="ai-title">Location Enrichment</div>
-        <p class="ai-desc">AI analyzes your photos to identify the location, look up historical context, and write a compelling travel narrative — all with one click during the journal wizard.</p>
+        <p class="ai-desc">AI analyzes your photos to identify the location, look up historical context, and write a travel narrative.</p>
+        <div class="ai-detail">
+          <p>Uses <strong>Gemini vision</strong> to identify what's in each photo, then <strong>Tavily web search</strong> to find real-world context — historical facts, cultural significance, local stories.</p>
+          <p><strong>Claude</strong> synthesizes everything into a polished paragraph that reads like a travel blog. One click in the wizard does it all.</p>
+        </div>
+        <span class="ai-expand-hint">Click to learn more</span>
       </div>
 
-      <div class="ai-card">
-        <div class="ai-icon">🗂️</div>
+      <div class="ai-card" onclick="this.classList.toggle('ai-expanded')">
+        <div class="ai-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </div>
         <div class="ai-title">Smart Layout</div>
-        <p class="ai-desc">The AI layout engine intelligently assigns your photos and notes to journal sections, ordering them by your GPX track to preserve the natural flow of your journey.</p>
+        <p class="ai-desc">The AI layout engine assigns your photos and notes to journal sections, ordered by GPX track position.</p>
+        <div class="ai-detail">
+          <p>Photos are automatically sorted by their nearest point along the GPX track, so the journal follows the natural flow of your journey — not upload order.</p>
+          <p>The wizard's Step 4 lets you fine-tune with checkbox-based location assignment. Locations already used in other sections are dimmed to prevent duplicates.</p>
+        </div>
+        <span class="ai-expand-hint">Click to learn more</span>
       </div>
 
-      <div class="ai-card">
-        <div class="ai-icon">🗺️</div>
+      <div class="ai-card" onclick="this.classList.toggle('ai-expanded')">
+        <div class="ai-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/>
+            <circle cx="12" cy="13" r="3"/>
+          </svg>
+        </div>
         <div class="ai-title">EXIF GPS Mapping</div>
-        <p class="ai-desc">Upload photos with GPS metadata and the plugin automatically plots them on the route map — no manual pinning required.</p>
+        <p class="ai-desc">Upload photos with GPS metadata and the plugin plots them on the route map automatically.</p>
+        <div class="ai-detail">
+          <p>The wizard reads EXIF GPS data from your photos and groups nearby ones (within ±0.001°) into locations. Each gets a blue "EXIF" badge on the map.</p>
+          <p>Photos without GPS? No problem — use the AI-Assisted mode to let Gemini identify the location, or simply click the map to place them manually.</p>
+        </div>
+        <span class="ai-expand-hint">Click to learn more</span>
       </div>
 
-      <div class="ai-card">
-        <div class="ai-icon">🌐</div>
+      <div class="ai-card" onclick="this.classList.toggle('ai-expanded')">
+        <div class="ai-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M2 12h20"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/>
+          </svg>
+        </div>
         <div class="ai-title">Multi-Model Support</div>
-        <p class="ai-desc">Use Gemini 2.0 Flash for vision and image generation, Claude for nuanced text analysis, and Tavily for real-time web search — all configurable in plugin settings.</p>
+        <p class="ai-desc">Gemini for vision &amp; image gen, Claude for text analysis, Tavily for web search — all configurable.</p>
+        <div class="ai-detail">
+          <p>Each AI provider handles what it does best: <strong>Gemini 2.0 Flash</strong> for photo analysis and sketch generation, <strong>Claude</strong> for nuanced writing, <strong>Tavily</strong> for real-time web search.</p>
+          <p>Bring your own API keys — configure model selection, provider, and behavior in the plugin settings panel.</p>
+        </div>
+        <span class="ai-expand-hint">Click to learn more</span>
       </div>
 
-      <div class="ai-card">
-        <div class="ai-icon">🔒</div>
+      <div class="ai-card" onclick="this.classList.toggle('ai-expanded')">
+        <div class="ai-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
         <div class="ai-title">Private &amp; Local-First</div>
-        <p class="ai-desc">Your journal data lives in your Obsidian vault. AI calls go directly from your device to the respective API — no intermediary server ever sees your content.</p>
+        <p class="ai-desc">Your data stays in your Obsidian vault. AI calls go directly from your device — no middleman.</p>
+        <div class="ai-detail">
+          <p>HikerScrolls never sends your data through any intermediary server. API calls go <strong>directly</strong> from your device to Gemini / Claude / Tavily.</p>
+          <p>All journal data — photos, GPX tracks, sketches, text — lives as plain files in your vault. You own everything, always.</p>
+        </div>
+        <span class="ai-expand-hint">Click to learn more</span>
       </div>
 
     </div>
