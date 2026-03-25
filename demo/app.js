@@ -1591,12 +1591,13 @@ class ScrapbookViewer {
 
       const back = createDiv(inner, { cls: "hj-polaroid-back" });
       const backContent = createDiv(back, { cls: "hj-polaroid-back-edit" });
-      backContent.setAttribute("contenteditable", "true");
       backContent.setAttribute("spellcheck", "false");
       backContent.style.cssText = "width:100%;height:100%;outline:none;font-family:'Segoe Script','Comic Sans MS','Caveat',cursive;font-size:10px;color:#4a3728;line-height:1.5;padding:4px 6px;box-sizing:border-box;overflow-y:auto;";
       backContent.innerHTML = pt.backNote || pt.description || pt.blog || "";
       backContent.addEventListener("mousedown", (e) => e.stopPropagation());
       backContent.addEventListener("pointerdown", (e) => e.stopPropagation());
+      backContent.addEventListener("click", (ev) => { ev.stopPropagation(); backContent.setAttribute("contenteditable", "true"); backContent.focus(); });
+      backContent.addEventListener("blur", () => { backContent.removeAttribute("contenteditable"); });
       backContent.addEventListener("input", () => { this._canvasDirty = true; this._saveCanvasDebounced(); });
 
       let _cardStage = "normal";
@@ -1605,6 +1606,7 @@ class ScrapbookViewer {
         const wrap = card.closest(".hj-polaroid-wrap");
         if (wrap?._justDragged) { wrap._justDragged = false; wrap.style.zIndex = "20"; return; }
         e.stopPropagation();
+        this._cardClickTime = Date.now();
         if (_cardStage === "normal") {
           this._resetScrapCard();
           inner.style.transform = "scale(1.8)";
@@ -1613,29 +1615,17 @@ class ScrapbookViewer {
           this._scrapState = { idx: i, stage: "zoomed" };
           _cardStage = "zoomed";
         } else if (_cardStage === "zoomed") {
-          inner.style.transform = "";
-          card.classList.remove("hj-card-active");
-          card.style.zIndex = 20;
-          this._scrapState = null;
-          _cardStage = "normal";
-        }
-      });
-      polaroid.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        if (_cardStage === "flipped") {
+          inner.style.transform = "rotateY(180deg) scale(1.8)";
+          card.classList.add("hj-card-flipped");
+          this._scrapState = { idx: i, stage: "flipped" };
+          _cardStage = "flipped";
+          setTimeout(() => backContent.focus(), 400);
+        } else if (_cardStage === "flipped") {
           inner.style.transform = "";
           card.classList.remove("hj-card-flipped", "hj-card-active");
           card.style.zIndex = 20;
           this._scrapState = null;
           _cardStage = "normal";
-        } else {
-          this._resetScrapCard();
-          inner.style.transform = "rotateY(180deg) scale(1.8)";
-          card.classList.add("hj-card-flipped", "hj-card-active");
-          card.style.zIndex = 1000;
-          this._scrapState = { idx: i, stage: "flipped" };
-          _cardStage = "flipped";
-          setTimeout(() => backContent.focus(), 400);
         }
       });
       card._backContent = backContent;
@@ -1648,6 +1638,7 @@ class ScrapbookViewer {
 
     root.addEventListener("click", () => {
       if (this._dragState && this._dragState.moved > 5) return;
+      if (this._cardClickTime && Date.now() - this._cardClickTime < 100) return;
       this._resetScrapCard();
     });
 
@@ -1865,7 +1856,7 @@ class ScrapbookViewer {
     root.addEventListener("wheel", (e) => {
       e.preventDefault();
       const factor = e.deltaY > 0 ? 0.9 : 1.1;
-      const newScale = Math.max(this._vpBaseScale * 0.15, Math.min(this._vpBaseScale * 6, this._vpScale * factor));
+      const newScale = Math.max(this._vpBaseScale * 0.3, Math.min(this._vpBaseScale * 6, this._vpScale * factor));
       const rect = root.getBoundingClientRect();
       const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
       this._vpX = cx - (cx - this._vpX) * (newScale / this._vpScale);
@@ -1899,7 +1890,7 @@ class ScrapbookViewer {
           const rect = root.getBoundingClientRect();
           const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
           const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
-          const newScale = Math.max(this._vpBaseScale * 0.15, Math.min(this._vpBaseScale * 6, this._vpScale * (dist / lastTouchDist)));
+          const newScale = Math.max(this._vpBaseScale * 0.3, Math.min(this._vpBaseScale * 6, this._vpScale * (dist / lastTouchDist)));
           this._vpX = cx - (cx - this._vpX) * (newScale / this._vpScale);
           this._vpY = cy - (cy - this._vpY) * (newScale / this._vpScale);
           this._vpScale = newScale;
