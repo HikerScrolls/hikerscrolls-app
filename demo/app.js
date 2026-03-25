@@ -2212,7 +2212,7 @@ class IllustratedViewer {
           } else {
             _isFlipped = true;
             flipCard.classList.add("hj-illust-flipped");
-            flipInner.style.transform = "scale(1.6)";
+            flipInner.style.transform = "rotateY(180deg) scale(1.6)";
           }
           wrap.style.zIndex = "200"; cardStage = "zoomed";
           this._activeIllustCard = flipCard;
@@ -2224,7 +2224,7 @@ class IllustratedViewer {
             // Single click: zoom in
             if (cardStage === "normal") {
               if (this._activeIllustCard && this._activeIllustCard !== flipCard) this._activeIllustCard._resetFn();
-              flipInner.style.transform = _isFlipped ? "scale(1.6)" : "scale(1.6)";
+              flipInner.style.transform = _isFlipped ? "rotateY(180deg) scale(1.6)" : "scale(1.6)";
               wrap.style.zIndex = "200"; cardStage = "zoomed";
               this._activeIllustCard = flipCard;
               this._activeIllustCard._resetFn = resetCard;
