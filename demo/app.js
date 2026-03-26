@@ -207,9 +207,21 @@ function saveSettings(settings) {
   localStorage.setItem(HJ_SETTINGS_KEY, JSON.stringify(settings));
 }
 
+let _serverStadiaKey = "";
 function getStadiaKey() {
-  return getSettings().stadiaApiKey || "";
+  return getSettings().stadiaApiKey || _serverStadiaKey || "";
 }
+
+// Fetch server config (Stadia key etc.) on startup
+(async function fetchServerConfig() {
+  try {
+    const r = await fetch("/api/config");
+    if (r.ok) {
+      const cfg = await r.json();
+      if (cfg.stadiaApiKey) _serverStadiaKey = cfg.stadiaApiKey;
+    }
+  } catch (e) {}
+})();
 
 // Unified AI proxy call
 async function callAI(capability, payload, overrideProvider, overrideModel) {
