@@ -183,43 +183,71 @@ function switchLang(lang) {
 
 
 
-// === Gemini Settings ===
-const GEMINI_SETTINGS_KEY = "hikerscrolls_settings";
+// === AI Settings (multi-provider) ===
+const HJ_SETTINGS_KEY = "hikerscrolls_settings";
+let _hjProviderMeta = null; // fetched from /api/ai/providers
 
 function getSettings() {
   try {
-    const stored = localStorage.getItem(GEMINI_SETTINGS_KEY);
+    const stored = localStorage.getItem(HJ_SETTINGS_KEY);
     if (stored) return JSON.parse(stored);
   } catch (e) {}
-  // Also check URL params
-  const params = new URLSearchParams(window.location.search);
   return {
-    geminiApiKey: params.get("gemini_key") || "",
-    geminiModel: params.get("gemini_model") || "gemini-2.0-flash",
-    stadiaApiKey: params.get("stadia_key") || ""
+    aiRouting: {
+      text: { provider: "gemini", model: "gemini-2.0-flash" },
+      vision: { provider: "gemini", model: "gemini-2.0-flash" },
+      image: { provider: "gemini", model: "gemini-3.1-flash-image-preview" }
+    },
+    apiKeys: {},
+    stadiaApiKey: ""
   };
 }
 
 function saveSettings(settings) {
-  localStorage.setItem(GEMINI_SETTINGS_KEY, JSON.stringify(settings));
-}
-
-function getApiKey() {
-  return getSettings().geminiApiKey;
-}
-
-function getModel() {
-  return getSettings().geminiModel || "gemini-2.0-flash";
+  localStorage.setItem(HJ_SETTINGS_KEY, JSON.stringify(settings));
 }
 
 function getStadiaKey() {
   return getSettings().stadiaApiKey || "";
 }
 
-// === Settings Modal ===
-function showSettingsModal() {
+// Unified AI proxy call
+async function callAI(capability, payload, overrideProvider, overrideModel) {
+  const settings = getSettings();
+  const routing = settings.aiRouting || {};
+  const provider = overrideProvider || routing[capability]?.provider || "gemini";
+  const model = overrideModel || routing[capability]?.model;
+  const userApiKey = settings.apiKeys?.[provider] || "";
+  const resp = await fetch("/api/ai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ capability, provider, model, userApiKey: userApiKey || undefined, payload })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: "API error " + resp.status }));
+    throw new Error(err.error || "API error " + resp.status);
+  }
+  const data = await resp.json();
+  return data.result;
+}
+
+async function fetchProviderMeta() {
+  if (_hjProviderMeta) return _hjProviderMeta;
+  try {
+    const r = await fetch("/api/ai/providers");
+    if (r.ok) _hjProviderMeta = await r.json();
+  } catch (e) {}
+  return _hjProviderMeta;
+}
+
+// === Settings Modal (multi-provider) ===
+async function showSettingsModal() {
   const existing = document.querySelector(".hj-settings-overlay");
   if (existing) existing.remove();
+
+  const meta = await fetchProviderMeta();
+  const providers = meta?.providers || {};
+  const serverAvailable = meta?.serverAvailable || {};
 
   const overlay = document.createElement("div");
   overlay.className = "hj-settings-overlay";
@@ -228,90 +256,157 @@ function showSettingsModal() {
 
   const modal = document.createElement("div");
   modal.className = "hj-settings-modal";
-  modal.style.cssText = "background:white;border-radius:16px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 16px 48px rgba(0,0,0,0.2);font-family:inherit;";
+  modal.style.cssText = "background:white;border-radius:16px;padding:28px 32px;max-width:520px;width:90%;box-shadow:0 16px 48px rgba(0,0,0,0.2);font-family:inherit;max-height:85vh;overflow-y:auto;";
 
   const title = document.createElement("h2");
   title.textContent = t("settings.title");
-  title.style.cssText = "margin:0 0 20px;font-size:1.1rem;font-weight:600;";
+  title.style.cssText = "margin:0 0 8px;font-size:1.1rem;font-weight:600;";
   modal.appendChild(title);
 
+  const subtitle = document.createElement("div");
+  subtitle.textContent = "Configure AI providers and models for each capability.";
+  subtitle.style.cssText = "font-size:0.75rem;color:#888;margin-bottom:20px;";
+  modal.appendChild(subtitle);
+
   const settings = getSettings();
+  const routing = settings.aiRouting || {};
+  const apiKeys = settings.apiKeys || {};
+  const selects = {};
 
-  // API Key
-  const keyLabel = document.createElement("label");
-  keyLabel.textContent = t("settings.geminiKey");
-  keyLabel.style.cssText = "display:block;font-size:0.8rem;font-weight:500;margin-bottom:6px;color:#555;";
-  modal.appendChild(keyLabel);
-  const keyInput = document.createElement("input");
-  keyInput.type = "password";
-  keyInput.value = settings.geminiApiKey || "";
-  keyInput.placeholder = "AIza...";
-  keyInput.style.cssText = "width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:0.85rem;margin-bottom:16px;";
-  modal.appendChild(keyInput);
-
-  // Model
-  const modelLabel = document.createElement("label");
-  modelLabel.textContent = t("settings.geminiModel");
-  modelLabel.style.cssText = "display:block;font-size:0.8rem;font-weight:500;margin-bottom:6px;color:#555;";
-  modal.appendChild(modelLabel);
-  const modelSelect = document.createElement("select");
-  modelSelect.style.cssText = "width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:0.85rem;margin-bottom:20px;";
-  const models = [
-    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash (Default)" },
-    { value: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" },
-    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-    { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-    { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Preview)" },
-    { value: "gemini-3-flash-preview", label: "Gemini 3 Flash (Preview)" },
-    { value: "gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash Lite (Preview)" },
-    { value: "gemini-3.1-flash-image-preview", label: "Gemini 3.1 Flash Image (Preview)" },
-    { value: "gemini-3-pro-image-preview", label: "Gemini 3 Pro Image (Preview)" },
-    { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
-    { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+  // Capability routing sections
+  const capabilities = [
+    { id: "text", label: "Text Analysis", desc: "Trip summaries, location enrichment" },
+    { id: "vision", label: "Vision Analysis", desc: "Photo analysis" },
+    { id: "image", label: "Image Generation", desc: "Pen sketches, souvenirs" }
   ];
-  for (const m of models) {
-    const opt = document.createElement("option");
-    opt.value = m.value; opt.textContent = m.label;
-    if (m.value === (settings.geminiModel || "gemini-2.0-flash")) opt.selected = true;
-    modelSelect.appendChild(opt);
-  }
-  modal.appendChild(modelSelect);
 
-  // Gemini hint
-  const hint = document.createElement("div");
-  hint.style.cssText = "font-size:0.75rem;color:#888;margin-bottom:20px;";
-  hint.innerHTML = 'Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#6366f1;">aistudio.google.com</a>';
-  modal.appendChild(hint);
+  for (const cap of capabilities) {
+    const section = document.createElement("div");
+    section.style.cssText = "margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;";
+
+    const capLabel = document.createElement("div");
+    capLabel.style.cssText = "font-size:0.8rem;font-weight:600;color:#333;margin-bottom:2px;";
+    capLabel.textContent = cap.label;
+    section.appendChild(capLabel);
+
+    const capDesc = document.createElement("div");
+    capDesc.style.cssText = "font-size:0.7rem;color:#999;margin-bottom:8px;";
+    capDesc.textContent = cap.desc;
+    section.appendChild(capDesc);
+
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;";
+
+    // Provider dropdown
+    const provSel = document.createElement("select");
+    provSel.style.cssText = "flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:0.8rem;";
+    const currentProv = routing[cap.id]?.provider || "gemini";
+    for (const [id, p] of Object.entries(providers)) {
+      if (!p.capabilities.includes(cap.id)) continue;
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = p.name + (serverAvailable[id] ? " ✓" : "");
+      if (id === currentProv) opt.selected = true;
+      provSel.appendChild(opt);
+    }
+    row.appendChild(provSel);
+
+    // Model dropdown
+    const modelSel = document.createElement("select");
+    modelSel.style.cssText = "flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:0.8rem;";
+    const fillModels = (provId) => {
+      modelSel.innerHTML = "";
+      const p = providers[provId];
+      const models = p?.models?.[cap.id] || [];
+      const currentModel = routing[cap.id]?.model;
+      for (const m of models) {
+        const opt = document.createElement("option");
+        opt.value = m; opt.textContent = m;
+        if (m === currentModel) opt.selected = true;
+        modelSel.appendChild(opt);
+      }
+    };
+    fillModels(currentProv);
+    provSel.addEventListener("change", () => fillModels(provSel.value));
+    row.appendChild(modelSel);
+
+    section.appendChild(row);
+    modal.appendChild(section);
+    selects[cap.id] = { prov: provSel, model: modelSel };
+  }
 
   // Divider
-  const divider = document.createElement("hr");
-  divider.style.cssText = "border:none;border-top:1px solid #eee;margin:0 0 16px;";
-  modal.appendChild(divider);
+  modal.appendChild(Object.assign(document.createElement("hr"), { style: "border:none;border-top:1px solid #eee;margin:16px 0;" }));
 
-  // Stadia Maps API Key
+  // API Keys section
+  const keysTitle = document.createElement("div");
+  keysTitle.style.cssText = "font-size:0.8rem;font-weight:600;color:#333;margin-bottom:4px;";
+  keysTitle.textContent = "API Keys (Optional)";
+  modal.appendChild(keysTitle);
+
+  const keysHint = document.createElement("div");
+  keysHint.style.cssText = "font-size:0.7rem;color:#888;margin-bottom:12px;";
+  keysHint.textContent = "Leave blank to use server default (rate limited). Provide your own key for unlimited access.";
+  modal.appendChild(keysHint);
+
+  const keyInputs = {};
+  const keyProviders = [
+    { id: "gemini", name: "Gemini", placeholder: "AIza..." },
+    { id: "claude", name: "Claude", placeholder: "sk-ant-..." },
+    { id: "openai", name: "OpenAI", placeholder: "sk-..." },
+    { id: "qwen", name: "Qwen", placeholder: "sk-..." },
+    { id: "kimi", name: "Kimi", placeholder: "sk-..." },
+    { id: "deepseek", name: "Deepseek", placeholder: "sk-..." },
+    { id: "minimax", name: "MiniMax", placeholder: "..." },
+    { id: "seedream", name: "Seedream", placeholder: "..." }
+  ];
+  for (const kp of keyProviders) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;";
+    const label = document.createElement("div");
+    label.style.cssText = "width:70px;font-size:0.75rem;color:#555;flex-shrink:0;";
+    label.textContent = kp.name;
+    row.appendChild(label);
+    const input = document.createElement("input");
+    input.type = "password";
+    input.value = apiKeys[kp.id] || "";
+    input.placeholder = kp.placeholder;
+    input.style.cssText = "flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:0.8rem;";
+    row.appendChild(input);
+    keyInputs[kp.id] = input;
+    modal.appendChild(row);
+  }
+
+  // Divider
+  modal.appendChild(Object.assign(document.createElement("hr"), { style: "border:none;border-top:1px solid #eee;margin:16px 0;" }));
+
+  // Stadia Maps
   const stadiaLabel = document.createElement("label");
-  stadiaLabel.textContent = t("settings.stadiaKey");
-  stadiaLabel.style.cssText = "display:block;font-size:0.8rem;font-weight:500;margin-bottom:6px;color:#555;";
+  stadiaLabel.textContent = "Stadia Maps API Key";
+  stadiaLabel.style.cssText = "display:block;font-size:0.75rem;font-weight:500;margin-bottom:4px;color:#555;";
   modal.appendChild(stadiaLabel);
   const stadiaInput = document.createElement("input");
   stadiaInput.type = "password";
   stadiaInput.value = settings.stadiaApiKey || "";
   stadiaInput.placeholder = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx";
-  stadiaInput.style.cssText = "width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:0.85rem;margin-bottom:8px;";
+  stadiaInput.style.cssText = "width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:0.8rem;margin-bottom:16px;";
   modal.appendChild(stadiaInput);
-
-  // Stadia hint
-  const stadiaHint = document.createElement("div");
-  stadiaHint.style.cssText = "font-size:0.75rem;color:#888;margin-bottom:20px;";
-  stadiaHint.innerHTML = t("settings.stadiaDesc") + ' <a href="https://stadiamaps.com" target="_blank" style="color:#6366f1;">stadiamaps.com</a>';
-  modal.appendChild(stadiaHint);
 
   // Save button
   const saveBtn = document.createElement("button");
   saveBtn.textContent = t("settings.save");
   saveBtn.style.cssText = "width:100%;padding:10px;background:#6366f1;color:white;border:none;border-radius:8px;font-size:0.85rem;cursor:pointer;font-weight:500;";
   saveBtn.addEventListener("click", () => {
-    saveSettings({ geminiApiKey: keyInput.value.trim(), geminiModel: modelSelect.value, stadiaApiKey: stadiaInput.value.trim() });
+    const newRouting = {};
+    for (const cap of capabilities) {
+      newRouting[cap.id] = { provider: selects[cap.id].prov.value, model: selects[cap.id].model.value };
+    }
+    const newKeys = {};
+    for (const kp of keyProviders) {
+      const v = keyInputs[kp.id].value.trim();
+      if (v) newKeys[kp.id] = v;
+    }
+    saveSettings({ aiRouting: newRouting, apiKeys: newKeys, stadiaApiKey: stadiaInput.value.trim() });
     overlay.remove();
   });
   modal.appendChild(saveBtn);
@@ -320,11 +415,8 @@ function showSettingsModal() {
   document.body.appendChild(overlay);
 }
 
-// === Gemini AI Helpers ===
+// === AI Helpers (via /api/ai proxy) ===
 async function enrichLocationWithGemini(lat, lng, locationName) {
-  const apiKey = getApiKey();
-  const model = getModel();
-  if (!apiKey) throw new Error(t("ai.setApiKey"));
   const prompt = `You are a travel guide assistant. Provide brief, interesting information about this location:
 Name: ${locationName}
 Coordinates: ${lat}, ${lng}
@@ -335,26 +427,14 @@ Return ONLY a valid JSON object (no markdown):
   "category": "<e.g. Mountain, Temple, City, Waterfall, Viewpoint, etc.>",
   "highlights": ["<highlight 1>", "<highlight 2>", "<highlight 3>"]
 }`;
-  const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.7, maxOutputTokens: 512 }
-  };
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
-  );
-  if (!resp.ok) throw new Error("Gemini API error: " + resp.status);
-  const data = await resp.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  const result = await callAI("text", { userPrompt: prompt, temperature: 0.7 });
+  const text = result.text || "";
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("No JSON in response");
   return JSON.parse(jsonMatch[0]);
 }
 
 async function summarizeTripWithGemini(trip) {
-  const apiKey = getApiKey();
-  const model = getModel();
-  if (!apiKey) throw new Error(t("ai.setApiKey"));
   const prompt = `You are a travel storyteller. Summarize this hiking/travel journey in 2-3 sentences, make it vivid and inspiring.
 Trip: ${trip.name}
 Region: ${trip.region || "Unknown"}
@@ -363,23 +443,11 @@ Distance: ${trip.stats?.distanceKm ? trip.stats.distanceKm.toFixed(1) + " km" : 
 Waypoints: ${trip.waypoints?.length || 0}
 
 Write a brief, engaging summary in the same language as the trip name. If the name is in Chinese, write in Chinese. If in English, write in English.`;
-  const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.8, maxOutputTokens: 256 }
-  };
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
-  );
-  if (!resp.ok) throw new Error("Gemini API error: " + resp.status);
-  const data = await resp.json();
-  return (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+  const result = await callAI("text", { userPrompt: prompt, temperature: 0.8 });
+  return (result.text || "").trim();
 }
 
 async function layoutWithGemini(pts, mapW, mapH, photoW, photoH, sketchW, sketchH) {
-  const apiKey = getApiKey();
-  const model = getModel();
-  if (!apiKey) throw new Error(t("ai.setApiKey"));
   const pointsDesc = pts.map((p, i) => ({
     idx: i, name: p.title || "Location " + (i + 1),
     x: Math.round(p.x), y: Math.round(p.y),
@@ -407,27 +475,14 @@ Return ONLY valid JSON (no markdown), an array with one object per waypoint:
 [{"idx":0,"photoX":100,"photoY":200,"photoRot":-2,"sketchX":100,"sketchY":340,"sketchRot":1}, ...]
 
 The x,y coordinates are the CENTER of each card.`;
-
-  const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
-  };
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
-  );
-  if (!resp.ok) throw new Error("Gemini layout API error: " + resp.status);
-  const data = await resp.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  const result = await callAI("text", { userPrompt: prompt, temperature: 0.3 });
+  const text = result.text || "";
   const m = text.match(/\[[\s\S]*\]/);
   if (!m) throw new Error("No JSON array in layout response");
   return JSON.parse(m[0]);
 }
 
 async function generatePhotoSketch(photoBase64, photoMimeType) {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error(t("ai.setApiKey"));
-  const imageModel = "gemini-2.0-flash-preview-image-generation";
   const prompt = `Convert this photo into a pen and ink drawing (钢笔画 style) suitable for a travel journal illustration.
 
 CRITICAL RULES:
@@ -441,31 +496,14 @@ CRITICAL RULES:
 - NO text, NO labels, NO signatures, NO borders, NO frames, NO sketchbook edges
 - Output the drawing directly on a flat pure white background`;
 
-  const body = {
-    contents: [{
-      parts: [
-        { inlineData: { mimeType: photoMimeType, data: photoBase64 } },
-        { text: prompt }
-      ]
-    }],
-    generationConfig: {
-      responseModalities: ["IMAGE", "TEXT"],
-      maxOutputTokens: 4096
-    }
-  };
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent?key=${apiKey}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
-  );
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => "");
-    throw new Error("Gemini image API error: " + resp.status + " " + errText);
-  }
-  const data = await resp.json();
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  const imgPart = parts.find(p => p.inlineData);
-  if (!imgPart) throw new Error("No image in Gemini response");
-  return { base64: imgPart.inlineData.data, mimeType: imgPart.inlineData.mimeType || "image/png" };
+  const result = await callAI("image", {
+    parts: [
+      { inlineData: { mimeType: photoMimeType, data: photoBase64 } },
+      { text: prompt }
+    ]
+  });
+  if (!result || !result.base64) throw new Error("No image in response");
+  return { base64: result.base64, mimeType: result.mime || "image/png" };
 }
 
 // === DOM Helpers ===

@@ -1,0 +1,10 @@
+{
+  "framework": null,
+  "buildCommand": null,
+  "outputDirectory": ".",
+  "functions": {
+    "api/ai.js": {
+      "maxDuration": 60
+    }
+  }
+}

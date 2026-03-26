@@ -3,3 +3,7 @@ sync_trips.js
 *.log
 .DS_Store
 Thumbs.db
+node_modules/
+.vercel/
+.env
+.env.local
