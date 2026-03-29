@@ -465,7 +465,7 @@ function showCreationWizard() {
     if (gpxData) {
       dz.innerHTML = "<div style='font-weight:600;color:#2d6a4f;margin-bottom:4px;'>" + gpxData.name + "</div><div style='font-size:0.8rem;color:#64748b;'>" + gpxData.trackPoints.length + " points \u00b7 " + gpxData.totalDistanceKm + " km \u00b7 \u2191" + gpxData.elevationGainM + "m \u2193" + gpxData.elevationLossM + "m</div><div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Click to replace</div>";
     } else {
-      dz.innerHTML = "<div style='margin-bottom:4px;'><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div><div style='font-size:0.85rem;color:#94a3b8;'>Drop a .gpx file here or click to browse</div>";
+      dz.innerHTML = '<div style="margin-bottom:4px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div><div style="font-size:0.85rem;color:#94a3b8;">Drop a .gpx file here or click to browse</div>';
     }
     const fi = _el("input", ct); fi.type = "file"; fi.accept = ".gpx"; fi.style.display = "none";
     fi.onchange = async (e) => { if (e.target.files[0]) { await handleGpx(e.target.files[0]); render(); } };
@@ -547,7 +547,7 @@ function showCreationWizard() {
         "<div style='font-size:0.8rem;color:#64748b;'>" + gpsCount + " have GPS (will use directly) \u00b7 " + noGpsCount + " need AI analysis</div>" +
         "<div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Click to add more</div>";
     } else {
-      uploadSection.innerHTML = "<div style='margin-bottom:4px;'><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M28.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg></div><div style='font-size:0.85rem;color:#94a3b8;'>Drop photos here or click to browse</div><div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Photos with GPS will be placed automatically</div>";
+      uploadSection.innerHTML = '<div style="margin-bottom:4px;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg></div><div style="font-size:0.85rem;color:#94a3b8;">Drop photos here or click to browse</div><div style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">Photos with GPS will be placed automatically</div>';
     }
     const fi = _el("input", ct); fi.type = "file"; fi.accept = "image/*"; fi.multiple = true; fi.style.display = "none";
     fi.onchange = async (e) => { await importAiPhotos(e.target.files); render(); };
