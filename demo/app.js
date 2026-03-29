@@ -269,303 +269,404 @@ function deleteLocalTrip(tripId) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// ══ A4: Creation Wizard (3-step) ═════════════════════════════
+// ══ A4: Creation Wizard (5-step, full port from plugin) ══════
 // ══════════════════════════════════════════════════════════════
 
 function showCreationWizard() {
   const existing = document.querySelector(".hj-wizard-overlay");
   if (existing) existing.remove();
 
-  // Wizard state
+  // ── Wizard State ──
   let step = 1;
-  let tripName = "";
-  let tripDate = new Date().toISOString().split("T")[0];
-  let tripRegion = "";
-  let template = "scrollytelling";
-  let mapStyle = "opentopomap";
-  let gpxData = null; // parsed GPX
-  let locations = []; // {id, title, lat, lng, photos: [{id, title}]}
-  let photoBuffers = new Map(); // id → ArrayBuffer
+  let config = { name: "", date: new Date().toISOString().split("T")[0], endDate: "", region: "", description: "", template: "scrollytelling", mapStyle: "opentopomap" };
+  let gpxData = null;
+  let locations = []; // {id, title, lat, lng, photos:[], gpsSource, description}
+  let sections = []; // {id, title, locationIds:[], text}
+  let photoBuffers = new Map(); // id → compressed ArrayBuffer
   let photoCounter = 0;
   let locCounter = 0;
+  let secCounter = 0;
+  let useAiLocation = false;
+  let wizardMap = null; // Leaflet map instance
+  let wizardMarkers = []; // Leaflet marker refs
+  let _thumbCache = new Map();
 
-  // Overlay
+  // ── Overlay + Modal ──
   const overlay = document.createElement("div");
   overlay.className = "hj-wizard-overlay";
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
 
   const modal = document.createElement("div");
   modal.className = "hj-wizard-modal";
-  modal.style.cssText = "background:white;border-radius:16px;max-width:700px;width:95%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;";
+  modal.style.cssText = "background:white;border-radius:16px;max-width:820px;width:95%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;";
 
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 
+  // ── Helpers ──
+  const _el = (tag, parent, opts = {}) => {
+    const el = document.createElement(tag);
+    if (opts.cls) el.className = opts.cls;
+    if (opts.text) el.textContent = opts.text;
+    if (opts.html) el.innerHTML = opts.html;
+    if (opts.style) el.style.cssText = opts.style;
+    if (parent) parent.appendChild(el);
+    return el;
+  };
+
+  function destroyMap() {
+    if (wizardMap) { wizardMap.remove(); wizardMap = null; }
+    wizardMarkers = [];
+  }
+
+  function initLeafletMap(container, opts = {}) {
+    destroyMap();
+    const height = opts.height || 380;
+    container.style.height = height + "px";
+    container.style.borderRadius = "8px";
+    container.style.border = "1px solid #e2e8f0";
+    container.style.marginBottom = "12px";
+
+    const center = [0, 0];
+    let zoom = 2;
+    if (gpxData && gpxData.trackPoints.length > 0) {
+      const b = gpxData.bounds;
+      center[0] = (b.north + b.south) / 2;
+      center[1] = (b.east + b.west) / 2;
+      zoom = 12;
+    }
+
+    wizardMap = L.map(container, { center, zoom, zoomControl: true, attributionControl: false });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png", {
+      subdomains: "abcd", maxZoom: 19
+    }).addTo(wizardMap);
+
+    // Draw GPX route
+    if (gpxData && gpxData.trackPoints.length > 1) {
+      const latlngs = gpxData.trackPoints.map(p => [p.lat, p.lng]);
+      L.polyline(latlngs, { color: "#dc2626", weight: 3, opacity: 0.7 }).addTo(wizardMap);
+      wizardMap.fitBounds(L.latLngBounds(latlngs).pad(0.1));
+    }
+
+    setTimeout(() => wizardMap.invalidateSize(), 100);
+    return wizardMap;
+  }
+
+  function refreshMapMarkers() {
+    if (!wizardMap) return;
+    wizardMarkers.forEach(m => wizardMap.removeLayer(m));
+    wizardMarkers = [];
+    const colors = { exif: "#2563eb", "ai-high": "#10b981", "ai-medium": "#f59e0b", "ai-unknown": "#6b7280", manual: "#dc2626" };
+    locations.forEach((loc, i) => {
+      const color = colors[loc.gpsSource] || "#dc2626";
+      const marker = L.circleMarker([loc.lat, loc.lng], {
+        radius: 8, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.9
+      }).addTo(wizardMap);
+      marker.bindTooltip(loc.title || "Location " + (i + 1), { direction: "top", offset: [0, -10] });
+      wizardMarkers.push(marker);
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ── Main Render ──
+  // ══════════════════════════════════════════════════════════
   function render() {
+    destroyMap();
     modal.innerHTML = "";
 
     // Header
-    const header = document.createElement("div");
-    header.style.cssText = "padding:20px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;";
-    const title = document.createElement("div");
-    title.style.cssText = "font-size:1rem;font-weight:600;color:#1e293b;";
-    title.textContent = "Create New Trip — Step " + step + " of 3";
-    header.appendChild(title);
-    const closeBtn = document.createElement("button");
-    closeBtn.textContent = "\u00d7";
-    closeBtn.style.cssText = "background:none;border:none;font-size:1.5rem;cursor:pointer;color:#94a3b8;padding:0 4px;";
-    closeBtn.onclick = () => overlay.remove();
-    header.appendChild(closeBtn);
-    modal.appendChild(header);
+    const header = _el("div", modal, { style: "padding:16px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;" });
+    const titles = ["Trip Info & GPX", "Select Locations", "Assign Photos", "Blog Sections", "Review & Create"];
+    _el("div", header, { text: "Step " + step + ": " + titles[step - 1], style: "font-size:1rem;font-weight:600;color:#1e293b;" });
+    const closeBtn = _el("button", header, { text: "\u00d7", style: "background:none;border:none;font-size:1.5rem;cursor:pointer;color:#94a3b8;padding:0 4px;" });
+    closeBtn.onclick = () => { destroyMap(); overlay.remove(); };
 
-    // Step progress
-    const progress = document.createElement("div");
-    progress.style.cssText = "display:flex;gap:4px;padding:0 24px;margin-top:12px;";
-    for (let i = 1; i <= 3; i++) {
-      const dot = document.createElement("div");
-      dot.style.cssText = "flex:1;height:4px;border-radius:2px;background:" + (i <= step ? "#2d6a4f" : "#e5e7eb") + ";transition:background 0.3s;";
-      progress.appendChild(dot);
+    // Step dots
+    const dots = _el("div", modal, { style: "display:flex;gap:6px;padding:8px 24px;justify-content:center;" });
+    for (let i = 1; i <= 5; i++) {
+      const dot = _el("div", dots, { text: String(i), style: "width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;transition:all 0.3s;" + (i === step ? "background:#2d6a4f;color:white;" : i < step ? "background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;" : "background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;") });
     }
-    modal.appendChild(progress);
 
-    // Content
-    const content = document.createElement("div");
-    content.style.cssText = "flex:1;overflow-y:auto;padding:20px 24px;";
+    // Content area
+    const content = _el("div", modal, { style: "flex:1;overflow-y:auto;padding:16px 24px;" });
 
-    if (step === 1) renderStep1(content);
-    else if (step === 2) renderStep2(content);
-    else if (step === 3) renderStep3(content);
-
-    modal.appendChild(content);
+    switch (step) {
+      case 1: renderStep1(content); break;
+      case 2: renderStep2(content); break;
+      case 3: renderStep3(content); break;
+      case 4: renderStep4(content); break;
+      case 5: renderStep5(content); break;
+    }
 
     // Footer
-    const footer = document.createElement("div");
-    footer.style.cssText = "padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;";
+    const footer = _el("div", modal, { style: "padding:12px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;" });
     if (step > 1) {
-      const backBtn = document.createElement("button");
-      backBtn.textContent = "Back";
-      backBtn.style.cssText = "padding:8px 20px;border:1px solid #d1d5db;border-radius:8px;background:white;cursor:pointer;font-size:0.85rem;";
+      const backBtn = _el("button", footer, { text: "\u2190 Back", style: "padding:8px 20px;border:1px solid #d1d5db;border-radius:8px;background:white;cursor:pointer;font-size:0.85rem;" });
       backBtn.onclick = () => { step--; render(); };
-      footer.appendChild(backBtn);
-    } else {
-      footer.appendChild(document.createElement("div"));
-    }
-    if (step < 3) {
-      const nextBtn = document.createElement("button");
-      nextBtn.textContent = "Next";
-      nextBtn.style.cssText = "padding:8px 20px;border:none;border-radius:8px;background:#2d6a4f;color:white;cursor:pointer;font-size:0.85rem;font-weight:500;";
+    } else { _el("div", footer); }
+
+    if (step < 5) {
+      const nextBtn = _el("button", footer, { text: "Next \u2192", style: "padding:8px 20px;border:none;border-radius:8px;background:#2d6a4f;color:white;cursor:pointer;font-size:0.85rem;font-weight:500;" });
       nextBtn.onclick = () => {
-        if (step === 1 && !tripName.trim()) { alert("Please enter a trip name"); return; }
+        if (step === 1 && !config.name.trim()) { alert("Please enter a trip name"); return; }
         step++; render();
       };
-      footer.appendChild(nextBtn);
     } else {
-      const finishBtn = document.createElement("button");
-      finishBtn.textContent = "Create Trip";
-      finishBtn.style.cssText = "padding:8px 20px;border:none;border-radius:8px;background:#2d6a4f;color:white;cursor:pointer;font-size:0.85rem;font-weight:500;";
-      finishBtn.onclick = () => finishWizard();
-      footer.appendChild(finishBtn);
+      const finBtn = _el("button", footer, { text: "Create Trip", style: "padding:8px 20px;border:none;border-radius:8px;background:#2d6a4f;color:white;cursor:pointer;font-size:0.85rem;font-weight:600;" });
+      finBtn.onclick = () => finishWizard();
     }
-    modal.appendChild(footer);
   }
 
-  // ── Step 1: Basic Info + GPX ──
-  function renderStep1(container) {
-    const inputStyle = "width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.85rem;margin-bottom:14px;";
-    const labelStyle = "display:block;font-size:0.8rem;font-weight:500;color:#475569;margin-bottom:4px;";
+  // ══════════════════════════════════════════════════════════
+  // ── Step 1: Trip Info + GPX Upload ──
+  // ══════════════════════════════════════════════════════════
+  function renderStep1(ct) {
+    const IS = "width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.85rem;margin-bottom:12px;font-family:inherit;";
+    const LS = "display:block;font-size:0.8rem;font-weight:500;color:#475569;margin-bottom:4px;";
+
+    _el("p", ct, { text: "Enter your trip details and upload a GPX route file.", style: "color:#64748b;font-size:0.85rem;margin:0 0 16px;" });
 
     // Name
-    const nameLabel = document.createElement("label"); nameLabel.textContent = "Trip Name *"; nameLabel.style.cssText = labelStyle; container.appendChild(nameLabel);
-    const nameInput = document.createElement("input"); nameInput.value = tripName; nameInput.placeholder = "e.g. Kumano Kodo Day 1";
-    nameInput.style.cssText = inputStyle; nameInput.oninput = () => { tripName = nameInput.value; };
-    container.appendChild(nameInput);
+    _el("label", ct, { text: "Trip Name *", style: LS });
+    const nameIn = _el("input", ct, { style: IS }); nameIn.value = config.name; nameIn.placeholder = "e.g. Kumano Kodo Day 1";
+    nameIn.oninput = () => { config.name = nameIn.value; };
 
-    // Date + Region row
-    const row = document.createElement("div"); row.style.cssText = "display:flex;gap:12px;";
-    const dateWrap = document.createElement("div"); dateWrap.style.cssText = "flex:1;";
-    const dateLabel = document.createElement("label"); dateLabel.textContent = "Date"; dateLabel.style.cssText = labelStyle; dateWrap.appendChild(dateLabel);
-    const dateInput = document.createElement("input"); dateInput.type = "date"; dateInput.value = tripDate;
-    dateInput.style.cssText = inputStyle; dateInput.onchange = () => { tripDate = dateInput.value; };
-    dateWrap.appendChild(dateInput); row.appendChild(dateWrap);
+    // Date row
+    const dRow = _el("div", ct, { style: "display:flex;gap:12px;" });
+    const dw1 = _el("div", dRow, { style: "flex:1;" }); _el("label", dw1, { text: "Start Date", style: LS });
+    const dateIn = _el("input", dw1, { style: IS }); dateIn.type = "date"; dateIn.value = config.date; dateIn.onchange = () => { config.date = dateIn.value; };
+    const dw2 = _el("div", dRow, { style: "flex:1;" }); _el("label", dw2, { text: "End Date", style: LS });
+    const endIn = _el("input", dw2, { style: IS }); endIn.type = "date"; endIn.value = config.endDate; endIn.onchange = () => { config.endDate = endIn.value; };
 
-    const regWrap = document.createElement("div"); regWrap.style.cssText = "flex:1;";
-    const regLabel = document.createElement("label"); regLabel.textContent = "Region"; regLabel.style.cssText = labelStyle; regWrap.appendChild(regLabel);
-    const regInput = document.createElement("input"); regInput.value = tripRegion; regInput.placeholder = "e.g. Wakayama, Japan";
-    regInput.style.cssText = inputStyle; regInput.oninput = () => { tripRegion = regInput.value; };
-    regWrap.appendChild(regInput); row.appendChild(regWrap);
-    container.appendChild(row);
+    // Region + Description
+    _el("label", ct, { text: "Region", style: LS });
+    const regIn = _el("input", ct, { style: IS }); regIn.value = config.region; regIn.placeholder = "e.g. Wakayama, Japan"; regIn.oninput = () => { config.region = regIn.value; };
 
-    // Template + Map Style row
-    const row2 = document.createElement("div"); row2.style.cssText = "display:flex;gap:12px;";
-    const tmplWrap = document.createElement("div"); tmplWrap.style.cssText = "flex:1;";
-    const tmplLabel = document.createElement("label"); tmplLabel.textContent = "Template"; tmplLabel.style.cssText = labelStyle; tmplWrap.appendChild(tmplLabel);
-    const tmplSel = document.createElement("select"); tmplSel.style.cssText = inputStyle;
-    [{v:"scrollytelling",l:"Scrollytelling"},{v:"scrapbook",l:"Scrapbook"},{v:"illustrated",l:"Illustrated"}].forEach(o => {
-      const opt = document.createElement("option"); opt.value = o.v; opt.textContent = o.l; if (o.v === template) opt.selected = true; tmplSel.appendChild(opt);
-    });
-    tmplSel.onchange = () => { template = tmplSel.value; }; tmplWrap.appendChild(tmplSel); row2.appendChild(tmplWrap);
+    _el("label", ct, { text: "Description", style: LS });
+    const descIn = _el("textarea", ct, { style: IS + "resize:vertical;min-height:60px;" }); descIn.rows = 2; descIn.value = config.description; descIn.oninput = () => { config.description = descIn.value; };
 
-    const msWrap = document.createElement("div"); msWrap.style.cssText = "flex:1;";
-    const msLabel = document.createElement("label"); msLabel.textContent = "Map Style"; msLabel.style.cssText = labelStyle; msWrap.appendChild(msLabel);
-    const msSel = document.createElement("select"); msSel.style.cssText = inputStyle;
+    // Template + Map Style
+    const tRow = _el("div", ct, { style: "display:flex;gap:12px;" });
+    const tw1 = _el("div", tRow, { style: "flex:1;" }); _el("label", tw1, { text: "Template", style: LS });
+    const tmplSel = _el("select", tw1, { style: IS });
+    [{ v: "scrollytelling", l: "Scrollytelling" }, { v: "scrapbook", l: "Scrapbook" }, { v: "illustrated", l: "Illustrated" }].forEach(o => {
+      const opt = _el("option", tmplSel); opt.value = o.v; opt.textContent = o.l; if (o.v === config.template) opt.selected = true;
+    }); tmplSel.onchange = () => { config.template = tmplSel.value; };
+
+    const tw2 = _el("div", tRow, { style: "flex:1;" }); _el("label", tw2, { text: "Map Style", style: LS });
+    const msSel = _el("select", tw2, { style: IS });
     Object.entries(MAP_STYLES).forEach(([k, v]) => {
-      const opt = document.createElement("option"); opt.value = k; opt.textContent = v.name; if (k === mapStyle) opt.selected = true; msSel.appendChild(opt);
-    });
-    msSel.onchange = () => { mapStyle = msSel.value; }; msWrap.appendChild(msSel); row2.appendChild(msWrap);
-    container.appendChild(row2);
+      const opt = _el("option", msSel); opt.value = k; opt.textContent = v.name; if (k === config.mapStyle) opt.selected = true;
+    }); msSel.onchange = () => { config.mapStyle = msSel.value; };
 
     // GPX Upload
-    const gpxLabel = document.createElement("label"); gpxLabel.textContent = "GPX File"; gpxLabel.style.cssText = labelStyle; container.appendChild(gpxLabel);
-    const dropZone = document.createElement("div");
-    dropZone.style.cssText = "border:2px dashed " + (gpxData ? "#2d6a4f" : "#d1d5db") + ";border-radius:10px;padding:24px;text-align:center;cursor:pointer;margin-bottom:14px;background:" + (gpxData ? "#f0faf4" : "#fafafa") + ";transition:all 0.2s;";
+    _el("label", ct, { text: "GPX Route File", style: LS });
+    const dz = _el("div", ct, { style: "border:2px dashed " + (gpxData ? "#2d6a4f" : "#d1d5db") + ";border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:" + (gpxData ? "#f0faf4" : "#fafafa") + ";transition:all 0.2s;" });
     if (gpxData) {
-      dropZone.innerHTML = "<div style='color:#2d6a4f;font-weight:600;margin-bottom:4px;'>" + gpxData.name + "</div><div style='font-size:0.8rem;color:#64748b;'>" + gpxData.trackPoints.length + " points · " + gpxData.totalDistanceKm + " km · ↑" + gpxData.elevationGainM + "m</div>";
+      dz.innerHTML = "<div style='font-weight:600;color:#2d6a4f;margin-bottom:4px;'>\u2705 " + gpxData.name + "</div><div style='font-size:0.8rem;color:#64748b;'>" + gpxData.trackPoints.length + " points \u00b7 " + gpxData.totalDistanceKm + " km \u00b7 \u2191" + gpxData.elevationGainM + "m \u2193" + gpxData.elevationLossM + "m</div><div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Click to replace</div>";
     } else {
-      dropZone.innerHTML = "<div style='font-size:0.85rem;color:#94a3b8;'>Drop a .gpx file here or click to browse</div>";
+      dz.innerHTML = "<div style='font-size:1.5rem;margin-bottom:4px;'>\uD83D\uDCC1</div><div style='font-size:0.85rem;color:#94a3b8;'>Drop a .gpx file here or click to browse</div>";
     }
-    const fileInput = document.createElement("input"); fileInput.type = "file"; fileInput.accept = ".gpx"; fileInput.style.display = "none";
-    fileInput.onchange = async (e) => { if (e.target.files[0]) await handleGpxFile(e.target.files[0]); render(); };
-    dropZone.onclick = () => fileInput.click();
-    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.borderColor = "#2d6a4f"; dropZone.style.background = "#f0faf4"; };
-    dropZone.ondragleave = () => { if (!gpxData) { dropZone.style.borderColor = "#d1d5db"; dropZone.style.background = "#fafafa"; } };
-    dropZone.ondrop = async (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { await handleGpxFile(f); render(); } };
-    container.appendChild(dropZone);
-    container.appendChild(fileInput);
+    const fi = _el("input", ct); fi.type = "file"; fi.accept = ".gpx"; fi.style.display = "none";
+    fi.onchange = async (e) => { if (e.target.files[0]) { await handleGpx(e.target.files[0]); render(); } };
+    dz.onclick = () => fi.click();
+    dz.ondragover = (e) => { e.preventDefault(); dz.style.borderColor = "#2d6a4f"; dz.style.background = "#f0faf4"; };
+    dz.ondragleave = () => { if (!gpxData) { dz.style.borderColor = "#d1d5db"; dz.style.background = "#fafafa"; } };
+    dz.ondrop = async (e) => { e.preventDefault(); if (e.dataTransfer.files[0]) { await handleGpx(e.dataTransfer.files[0]); render(); } };
   }
 
-  async function handleGpxFile(file) {
-    try {
-      const text = await file.text();
-      gpxData = parseGpx(text);
-    } catch (e) {
-      alert("Failed to parse GPX: " + e.message);
-      gpxData = null;
-    }
+  async function handleGpx(file) {
+    try { gpxData = parseGpx(await file.text()); } catch (e) { alert("GPX Error: " + e.message); gpxData = null; }
   }
 
-  // ── Step 2: Locations + Photos ──
-  function renderStep2(container) {
-    const labelStyle = "display:block;font-size:0.8rem;font-weight:500;color:#475569;margin-bottom:6px;";
+  // ══════════════════════════════════════════════════════════
+  // ── Step 2: Select Locations ──
+  // ══════════════════════════════════════════════════════════
+  function renderStep2(ct) {
+    _el("p", ct, { text: "Add locations along your route. Click the map or use Auto-Generate.", style: "color:#64748b;font-size:0.85rem;margin:0 0 12px;" });
 
-    // Auto-generate button (if GPX)
-    if (gpxData && gpxData.trackPoints.length > 0) {
-      const autoRow = document.createElement("div"); autoRow.style.cssText = "margin-bottom:14px;display:flex;gap:8px;align-items:center;";
-      const autoBtn = document.createElement("button");
-      autoBtn.textContent = "Auto-Generate Locations from GPX";
-      autoBtn.style.cssText = "padding:8px 16px;border:1px solid #2d6a4f;border-radius:8px;background:#f0faf4;color:#2d6a4f;cursor:pointer;font-size:0.8rem;font-weight:500;";
-      autoBtn.onclick = () => { autoGenerateLocations(); render(); };
-      autoRow.appendChild(autoBtn);
-      const addBtn = document.createElement("button");
-      addBtn.textContent = "+ Add Location Manually";
-      addBtn.style.cssText = "padding:8px 16px;border:1px solid #d1d5db;border-radius:8px;background:white;cursor:pointer;font-size:0.8rem;";
-      addBtn.onclick = () => { addManualLocation(); render(); };
-      autoRow.appendChild(addBtn);
-      container.appendChild(autoRow);
-    } else {
-      const addBtn = document.createElement("button");
-      addBtn.textContent = "+ Add Location";
-      addBtn.style.cssText = "padding:8px 16px;border:1px solid #d1d5db;border-radius:8px;background:white;cursor:pointer;font-size:0.8rem;margin-bottom:14px;";
-      addBtn.onclick = () => { addManualLocation(); render(); };
-      container.appendChild(addBtn);
+    // Toolbar
+    const toolbar = _el("div", ct, { style: "display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;" });
+    if (gpxData) {
+      const autoBtn = _el("button", toolbar, { text: "\u26A1 Auto-Generate", style: "padding:7px 14px;border:1px solid #2d6a4f;border-radius:8px;background:#f0faf4;color:#2d6a4f;cursor:pointer;font-size:0.8rem;font-weight:500;" });
+      autoBtn.onclick = () => { autoGenLocations(); render(); };
+    }
+    const addBtn = _el("button", toolbar, { text: "+ Add Location", style: "padding:7px 14px;border:1px solid #d1d5db;border-radius:8px;background:white;cursor:pointer;font-size:0.8rem;" });
+    addBtn.onclick = () => { addManualLoc(); render(); };
+    if (locations.length > 0) {
+      const clearBtn = _el("button", toolbar, { text: "\uD83D\uDDD1 Clear All", style: "padding:7px 14px;border:1px solid #fca5a5;border-radius:8px;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:0.8rem;" });
+      clearBtn.onclick = () => { if (confirm("Remove all locations?")) { locations = []; render(); } };
+    }
+
+    // Map
+    if (gpxData) {
+      const mapWrap = _el("div", ct);
+      const map = initLeafletMap(mapWrap, { height: 340 });
+
+      // Click map to add location
+      map.on("click", (e) => {
+        locCounter++;
+        locations.push({ id: "loc-" + locCounter, title: "Location " + locations.length, lat: e.latlng.lat, lng: e.latlng.lng, photos: [], gpsSource: "manual", description: "" });
+        refreshMapMarkers();
+        render();
+      });
+
+      refreshMapMarkers();
     }
 
     // Location list
     if (locations.length === 0) {
-      const hint = document.createElement("div");
-      hint.style.cssText = "text-align:center;padding:24px;color:#94a3b8;font-size:0.85rem;";
-      hint.textContent = gpxData ? "Click 'Auto-Generate' to create locations along your route" : "Add locations for your trip";
-      container.appendChild(hint);
-    }
-
-    for (let li = 0; li < locations.length; li++) {
-      const loc = locations[li];
-      const locCard = document.createElement("div");
-      locCard.style.cssText = "border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafafa;";
-
-      // Location header row
-      const locHeader = document.createElement("div"); locHeader.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:8px;";
-      const locNum = document.createElement("div");
-      locNum.style.cssText = "width:24px;height:24px;border-radius:50%;background:#2d6a4f;color:white;font-size:0.7rem;display:flex;align-items:center;justify-content:center;font-weight:600;flex-shrink:0;";
-      locNum.textContent = li + 1;
-      locHeader.appendChild(locNum);
-      const locInput = document.createElement("input"); locInput.value = loc.title; locInput.placeholder = "Location name";
-      locInput.style.cssText = "flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.8rem;";
-      locInput.oninput = () => { loc.title = locInput.value; };
-      locHeader.appendChild(locInput);
-      const coordSpan = document.createElement("span");
-      coordSpan.style.cssText = "font-size:0.7rem;color:#94a3b8;white-space:nowrap;";
-      coordSpan.textContent = loc.lat.toFixed(4) + ", " + loc.lng.toFixed(4);
-      locHeader.appendChild(coordSpan);
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "\u00d7";
-      delBtn.style.cssText = "background:none;border:none;color:#ef4444;font-size:1.2rem;cursor:pointer;padding:0 4px;";
-      delBtn.onclick = () => { locations.splice(li, 1); render(); };
-      locHeader.appendChild(delBtn);
-      locCard.appendChild(locHeader);
-
-      // Photo drop zone for this location
-      const photoDrop = document.createElement("div");
-      photoDrop.style.cssText = "border:1px dashed #d1d5db;border-radius:8px;padding:8px;min-height:40px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;cursor:pointer;";
-      photoDrop.ondragover = (e) => { e.preventDefault(); photoDrop.style.borderColor = "#2d6a4f"; photoDrop.style.background = "#f0faf4"; };
-      photoDrop.ondragleave = () => { photoDrop.style.borderColor = "#d1d5db"; photoDrop.style.background = ""; };
-      photoDrop.ondrop = async (e) => { e.preventDefault(); photoDrop.style.borderColor = "#d1d5db"; photoDrop.style.background = "";
-        await handlePhotoFiles(e.dataTransfer.files, loc); render();
-      };
-      const photoInput = document.createElement("input"); photoInput.type = "file"; photoInput.accept = "image/*"; photoInput.multiple = true; photoInput.style.display = "none";
-      photoInput.onchange = async (e) => { await handlePhotoFiles(e.target.files, loc); render(); };
-      photoDrop.onclick = (e) => { if (e.target === photoDrop || e.target.classList.contains("photo-hint")) photoInput.click(); };
-
-      if (loc.photos.length === 0) {
-        const hint = document.createElement("span"); hint.className = "photo-hint";
-        hint.style.cssText = "font-size:0.75rem;color:#94a3b8;"; hint.textContent = "Drop photos here or click to add";
-        photoDrop.appendChild(hint);
-      } else {
-        for (let pi = 0; pi < loc.photos.length; pi++) {
-          const ph = loc.photos[pi];
-          const thumb = document.createElement("div");
-          thumb.style.cssText = "width:48px;height:48px;border-radius:4px;background:#e5e7eb;position:relative;overflow:hidden;flex-shrink:0;";
-          // Load thumbnail async
-          getPhotoBlobUrl(ph.id).then(url => { if (url) thumb.style.backgroundImage = "url(" + url + ")"; thumb.style.backgroundSize = "cover"; thumb.style.backgroundPosition = "center"; });
-          const pDel = document.createElement("div");
-          pDel.style.cssText = "position:absolute;top:1px;right:1px;width:14px;height:14px;border-radius:50%;background:rgba(239,68,68,0.8);color:white;font-size:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;";
-          pDel.textContent = "\u00d7";
-          pDel.onclick = (e) => { e.stopPropagation(); loc.photos.splice(pi, 1); deletePhotoFromIDB(ph.id).catch(()=>{}); photoBuffers.delete(ph.id); render(); };
-          thumb.appendChild(pDel);
-          photoDrop.appendChild(thumb);
-        }
-      }
-      locCard.appendChild(photoDrop);
-      locCard.appendChild(photoInput);
-      container.appendChild(locCard);
+      _el("div", ct, { text: gpxData ? "Click the map or 'Auto-Generate' to add locations" : "Click '+ Add Location' to add stops", style: "text-align:center;padding:20px;color:#94a3b8;font-size:0.85rem;" });
+    } else {
+      const list = _el("div", ct, { style: "max-height:280px;overflow-y:auto;" });
+      locations.forEach((loc, i) => {
+        const row = _el("div", list, { style: "display:flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:6px;background:#fafafa;" });
+        // Number badge
+        _el("div", row, { text: String(i + 1), style: "width:24px;height:24px;border-radius:50%;background:#2d6a4f;color:white;font-size:0.7rem;display:flex;align-items:center;justify-content:center;font-weight:600;flex-shrink:0;" });
+        // Title input
+        const ti = _el("input", row, { style: "flex:1;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.8rem;" });
+        ti.value = loc.title; ti.oninput = () => { loc.title = ti.value; };
+        // Coords
+        _el("span", row, { text: loc.lat.toFixed(4) + ", " + loc.lng.toFixed(4), style: "font-size:0.7rem;color:#94a3b8;white-space:nowrap;font-family:monospace;" });
+        // Photo count
+        if (loc.photos.length > 0) _el("span", row, { text: loc.photos.length + "\uD83D\uDCF7", style: "font-size:0.7rem;color:#64748b;" });
+        // AI Enrich button
+        const aiBtn = _el("button", row, { text: "\u2728", style: "background:none;border:1px solid #d1d5db;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:0.8rem;" });
+        aiBtn.title = "AI Enrich";
+        aiBtn.onclick = async () => {
+          aiBtn.textContent = "...";
+          try {
+            const info = await enrichLocationWithGemini(loc.lat, loc.lng, loc.title);
+            loc.description = info.description || "";
+            if (info.highlights) loc.description += "\n" + info.highlights.map(h => "- " + h).join("\n");
+            aiBtn.textContent = "\u2705";
+          } catch (e) { aiBtn.textContent = "\u274c"; console.warn(e); }
+        };
+        // Delete
+        const del = _el("button", row, { text: "\u00d7", style: "background:none;border:none;color:#ef4444;font-size:1.2rem;cursor:pointer;padding:0 4px;" });
+        del.onclick = () => { locations.splice(i, 1); render(); };
+      });
     }
   }
 
-  function autoGenerateLocations() {
+  function autoGenLocations() {
     if (!gpxData) return;
     const pts = gpxData.trackPoints;
-    const numStops = Math.min(8, Math.max(2, Math.floor(gpxData.totalDistanceKm / 3)));
-    const interval = Math.max(1, Math.floor(pts.length / numStops));
+    const num = Math.min(8, Math.max(2, Math.floor(gpxData.totalDistanceKm / 3)));
+    const interval = Math.max(1, Math.floor(pts.length / num));
     locations = [];
     for (let i = 0; i < pts.length; i += interval) {
       locCounter++;
-      locations.push({ id: "loc-" + locCounter, title: "Location " + locations.length + 1, lat: pts[i].lat, lng: pts[i].lng, photos: [] });
+      locations.push({ id: "loc-" + locCounter, title: "Location " + (locations.length + 1), lat: pts[i].lat, lng: pts[i].lng, photos: [], gpsSource: "manual", description: "" });
     }
-    // Always add last point
     const last = pts[pts.length - 1];
-    if (locations.length > 0 && (locations[locations.length-1].lat !== last.lat || locations[locations.length-1].lng !== last.lng)) {
+    if (locations.length && (locations[locations.length - 1].lat !== last.lat || locations[locations.length - 1].lng !== last.lng)) {
       locCounter++;
-      locations.push({ id: "loc-" + locCounter, title: "End Point", lat: last.lat, lng: last.lng, photos: [] });
+      locations.push({ id: "loc-" + locCounter, title: "End Point", lat: last.lat, lng: last.lng, photos: [], gpsSource: "manual", description: "" });
     }
   }
 
-  function addManualLocation() {
+  function addManualLoc() {
     locCounter++;
-    const lat = gpxData ? gpxData.trackPoints[Math.floor(gpxData.trackPoints.length/2)].lat : 0;
-    const lng = gpxData ? gpxData.trackPoints[Math.floor(gpxData.trackPoints.length/2)].lng : 0;
-    locations.push({ id: "loc-" + locCounter, title: "New Location", lat, lng, photos: [] });
+    const lat = gpxData ? gpxData.trackPoints[Math.floor(gpxData.trackPoints.length / 2)].lat : 0;
+    const lng = gpxData ? gpxData.trackPoints[Math.floor(gpxData.trackPoints.length / 2)].lng : 0;
+    locations.push({ id: "loc-" + locCounter, title: "New Location", lat, lng, photos: [], gpsSource: "manual", description: "" });
   }
 
-  async function handlePhotoFiles(files, targetLoc) {
+  // ══════════════════════════════════════════════════════════
+  // ── Step 3: Upload & Assign Photos ──
+  // ══════════════════════════════════════════════════════════
+  function renderStep3(ct) {
+    _el("p", ct, { text: "Upload photos and assign them to locations. Drag photos between pools, or drop onto a location.", style: "color:#64748b;font-size:0.85rem;margin:0 0 12px;" });
+
+    // Global upload zone
+    const uploadZone = _el("div", ct, { style: "border:2px dashed #d1d5db;border-radius:10px;padding:14px;text-align:center;cursor:pointer;background:#fafafa;margin-bottom:14px;" });
+    uploadZone.innerHTML = "<div style='font-size:0.85rem;color:#94a3b8;'>\uD83D\uDCF7 Drop photos here to upload (auto-assigns by GPS)</div>";
+    const globalFi = _el("input", ct); globalFi.type = "file"; globalFi.accept = "image/*"; globalFi.multiple = true; globalFi.style.display = "none";
+    globalFi.onchange = async (e) => { await handlePhotoUpload(e.target.files, null); render(); };
+    uploadZone.onclick = () => globalFi.click();
+    uploadZone.ondragover = (e) => { e.preventDefault(); uploadZone.style.borderColor = "#2d6a4f"; uploadZone.style.background = "#f0faf4"; };
+    uploadZone.ondragleave = () => { uploadZone.style.borderColor = "#d1d5db"; uploadZone.style.background = "#fafafa"; };
+    uploadZone.ondrop = async (e) => { e.preventDefault(); uploadZone.style.borderColor = "#d1d5db"; uploadZone.style.background = "#fafafa"; await handlePhotoUpload(e.dataTransfer.files, null); render(); };
+
+    // Map (smaller)
+    if (gpxData) {
+      const mapWrap = _el("div", ct);
+      initLeafletMap(mapWrap, { height: 220 });
+      refreshMapMarkers();
+    }
+
+    // Location photo pools
+    if (locations.length === 0) {
+      _el("div", ct, { text: "No locations yet. Go back to Step 2 to add locations.", style: "text-align:center;padding:20px;color:#94a3b8;font-size:0.85rem;" });
+      return;
+    }
+
+    const poolContainer = _el("div", ct, { style: "max-height:320px;overflow-y:auto;" });
+    locations.forEach((loc, li) => {
+      const row = _el("div", poolContainer, { style: "display:flex;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;overflow:hidden;" });
+
+      // Left: location name
+      const nameCell = _el("div", row, { style: "width:140px;padding:10px 12px;background:#f8fafc;border-right:1px solid #e5e7eb;flex-shrink:0;cursor:pointer;" });
+      _el("div", nameCell, { text: loc.title, style: "font-size:0.8rem;font-weight:600;color:#1e293b;word-break:break-word;" });
+      _el("div", nameCell, { text: loc.photos.length + " photo" + (loc.photos.length !== 1 ? "s" : ""), style: "font-size:0.7rem;color:#94a3b8;margin-top:2px;" });
+
+      // Right: photo pool (droppable)
+      const pool = _el("div", row, { style: "flex:1;display:flex;flex-wrap:wrap;gap:6px;padding:8px;min-height:60px;align-items:center;align-content:flex-start;" });
+      pool.ondragover = (e) => { e.preventDefault(); pool.style.background = "#f0faf4"; };
+      pool.ondragleave = () => { pool.style.background = ""; };
+      pool.ondrop = (e) => {
+        e.preventDefault(); pool.style.background = "";
+        const photoId = e.dataTransfer.getData("text/plain");
+        const srcLocId = e.dataTransfer.getData("application/x-src-loc");
+        if (photoId) movePhoto(photoId, srcLocId, loc.id);
+        render();
+      };
+
+      // Drop zone for new photos to this location
+      const locFi = _el("input", pool); locFi.type = "file"; locFi.accept = "image/*"; locFi.multiple = true; locFi.style.display = "none";
+      locFi.onchange = async (e) => { await handlePhotoUpload(e.target.files, loc); render(); };
+
+      if (loc.photos.length === 0) {
+        const hint = _el("span", pool, { text: "Drop photos or click +", style: "font-size:0.75rem;color:#94a3b8;cursor:pointer;" });
+        hint.onclick = () => locFi.click();
+      }
+
+      loc.photos.forEach((ph, pi) => {
+        const thumb = _el("div", pool, { style: "width:56px;height:56px;border-radius:4px;background:#e5e7eb;position:relative;overflow:hidden;flex-shrink:0;cursor:grab;" });
+        thumb.draggable = true;
+        thumb.ondragstart = (e) => { e.dataTransfer.setData("text/plain", ph.id); e.dataTransfer.setData("application/x-src-loc", loc.id); thumb.style.opacity = "0.4"; };
+        thumb.ondragend = () => { thumb.style.opacity = "1"; };
+        // Load thumbnail
+        getPhotoBlobUrl(ph.id).then(url => { if (url) { thumb.style.backgroundImage = "url(" + url + ")"; thumb.style.backgroundSize = "cover"; thumb.style.backgroundPosition = "center"; } });
+        // Delete button
+        const pDel = _el("div", thumb, { text: "\u00d7", style: "position:absolute;top:1px;right:1px;width:16px;height:16px;border-radius:50%;background:rgba(239,68,68,0.85);color:white;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity 0.2s;" });
+        thumb.onmouseenter = () => { pDel.style.opacity = "1"; };
+        thumb.onmouseleave = () => { pDel.style.opacity = "0"; };
+        pDel.onclick = (e) => { e.stopPropagation(); loc.photos.splice(pi, 1); deletePhotoFromIDB(ph.id).catch(() => {}); render(); };
+      });
+
+      // Add button
+      const addPhBtn = _el("div", pool, { text: "+", style: "width:56px;height:56px;border-radius:4px;border:1px dashed #d1d5db;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#94a3b8;font-size:1.2rem;flex-shrink:0;" });
+      addPhBtn.onclick = () => locFi.click();
+    });
+  }
+
+  function movePhoto(photoId, srcLocId, destLocId) {
+    if (srcLocId === destLocId) return;
+    let photoEntry = null;
+    // Remove from source
+    for (const loc of locations) {
+      const idx = loc.photos.findIndex(p => p.id === photoId);
+      if (idx >= 0) { photoEntry = loc.photos.splice(idx, 1)[0]; break; }
+    }
+    if (!photoEntry) return;
+    // Add to destination
+    const destLoc = locations.find(l => l.id === destLocId);
+    if (destLoc) destLoc.photos.push(photoEntry);
+  }
+
+  async function handlePhotoUpload(files, targetLoc) {
     for (const file of files) {
       if (!file.type.startsWith("image/")) continue;
       photoCounter++;
@@ -573,106 +674,221 @@ function showCreationWizard() {
       const compressed = await compressPhoto(file);
       await savePhotoToIDB(id, compressed);
       photoBuffers.set(id, compressed);
-
-      // Check EXIF GPS
       const origBuf = await file.arrayBuffer();
       const exif = extractExifGps(origBuf);
-
-      const photoEntry = { id, title: file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ") };
+      const entry = { id, title: file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ") };
 
       if (targetLoc) {
-        // Explicitly dropped on a location
-        targetLoc.photos.push(photoEntry);
+        targetLoc.photos.push(entry);
       } else if (exif.hasGps && locations.length > 0) {
-        // Find nearest location
-        let nearest = locations[0], minDist = Infinity;
-        for (const loc of locations) {
-          const d = _haversineKm(exif.lat, exif.lng, loc.lat, loc.lng);
-          if (d < minDist) { minDist = d; nearest = loc; }
-        }
-        nearest.photos.push(photoEntry);
+        let nearest = locations[0], minD = Infinity;
+        for (const loc of locations) { const d = _haversineKm(exif.lat, exif.lng, loc.lat, loc.lng); if (d < minD) { minD = d; nearest = loc; } }
+        nearest.photos.push(entry);
       } else if (locations.length > 0) {
-        locations[0].photos.push(photoEntry);
+        locations[0].photos.push(entry);
       }
     }
   }
 
-  // ── Step 3: Preview + Finish ──
-  function renderStep3(container) {
-    const summary = document.createElement("div");
-    summary.style.cssText = "background:#f0faf4;border-radius:10px;padding:20px;margin-bottom:16px;";
-    summary.innerHTML = `
-      <div style="font-size:1rem;font-weight:600;color:#1e293b;margin-bottom:12px;">${tripName || "Untitled Trip"}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.8rem;color:#475569;">
-        <div>Date: <strong>${tripDate || "—"}</strong></div>
-        <div>Region: <strong>${tripRegion || "—"}</strong></div>
-        <div>Template: <strong>${template}</strong></div>
-        <div>Map: <strong>${MAP_STYLES[mapStyle]?.name || mapStyle}</strong></div>
-        <div>Locations: <strong>${locations.length}</strong></div>
-        <div>Photos: <strong>${locations.reduce((s,l) => s + l.photos.length, 0)}</strong></div>
-        ${gpxData ? "<div>Distance: <strong>" + gpxData.totalDistanceKm + " km</strong></div><div>Elevation: <strong>↑" + gpxData.elevationGainM + "m</strong></div>" : ""}
-      </div>
-    `;
-    container.appendChild(summary);
+  // ══════════════════════════════════════════════════════════
+  // ── Step 4: Blog Sections ──
+  // ══════════════════════════════════════════════════════════
+  function renderStep4(ct) {
+    _el("p", ct, { text: "Organize your journal into sections. Check locations to assign them to each section.", style: "color:#64748b;font-size:0.85rem;margin:0 0 12px;" });
 
-    // Location preview
-    for (const loc of locations) {
-      const row = document.createElement("div");
-      row.style.cssText = "display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;";
-      const dot = document.createElement("div");
-      dot.style.cssText = "width:8px;height:8px;border-radius:50%;background:#2d6a4f;flex-shrink:0;";
-      row.appendChild(dot);
-      const locName = document.createElement("div");
-      locName.style.cssText = "flex:1;font-size:0.8rem;color:#1e293b;";
-      locName.textContent = loc.title;
-      row.appendChild(locName);
-      const photoCount = document.createElement("div");
-      photoCount.style.cssText = "font-size:0.75rem;color:#94a3b8;";
-      photoCount.textContent = loc.photos.length + " photo" + (loc.photos.length !== 1 ? "s" : "");
-      row.appendChild(photoCount);
-      container.appendChild(row);
+    // Auto-create sections if none exist
+    if (sections.length === 0 && locations.length > 0) {
+      locations.forEach(loc => {
+        secCounter++;
+        sections.push({ id: "sec-" + secCounter, title: loc.title, locationIds: [loc.id], text: loc.description || "" });
+      });
     }
 
-    if (locations.length === 0) {
-      const hint = document.createElement("div");
-      hint.style.cssText = "text-align:center;padding:20px;color:#94a3b8;font-size:0.85rem;";
-      hint.textContent = "No locations added. You can still create the trip and add locations later.";
-      container.appendChild(hint);
+    // Add section button
+    const addSecBtn = _el("button", ct, { text: "+ Add Section", style: "padding:7px 14px;border:1px dashed #2d6a4f;border-radius:8px;background:#f0faf4;color:#2d6a4f;cursor:pointer;font-size:0.8rem;font-weight:500;margin-bottom:14px;" });
+    addSecBtn.onclick = () => { secCounter++; sections.push({ id: "sec-" + secCounter, title: "New Section", locationIds: [], text: "" }); render(); };
+
+    // Sort locations by track position if GPX exists
+    let sortedLocs = [...locations];
+    if (gpxData && gpxData.trackPoints.length > 1) {
+      sortedLocs = sortByTrackPos(locations, gpxData.trackPoints);
+    }
+
+    // All assigned location IDs (for disabling)
+    const allAssigned = new Map(); // locId → secId
+    sections.forEach(sec => { sec.locationIds.forEach(lid => allAssigned.set(lid, sec.id)); });
+
+    const secContainer = _el("div", ct, { style: "max-height:400px;overflow-y:auto;" });
+    sections.forEach((sec, si) => {
+      const block = _el("div", secContainer, { style: "border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafafa;" });
+
+      // Section header
+      const hdr = _el("div", block, { style: "display:flex;gap:8px;align-items:center;margin-bottom:8px;" });
+      _el("span", hdr, { text: "###", style: "font-size:0.7rem;font-weight:700;color:#94a3b8;background:#f1f5f9;padding:2px 6px;border-radius:4px;" });
+      const secTitle = _el("input", hdr, { style: "flex:1;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;font-weight:600;" });
+      secTitle.value = sec.title; secTitle.oninput = () => { sec.title = secTitle.value; };
+      const secDel = _el("button", hdr, { text: "\u00d7", style: "background:none;border:none;color:#ef4444;font-size:1.2rem;cursor:pointer;padding:0 4px;" });
+      secDel.onclick = () => { sections.splice(si, 1); render(); };
+
+      // Location checkboxes
+      const cbList = _el("div", block, { style: "display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto;margin-bottom:8px;padding:4px 0;" });
+      sortedLocs.forEach(loc => {
+        const isChecked = sec.locationIds.includes(loc.id);
+        const assignedElsewhere = allAssigned.has(loc.id) && allAssigned.get(loc.id) !== sec.id;
+
+        const cbRow = _el("div", cbList, { style: "display:flex;gap:8px;align-items:center;padding:4px 6px;border-radius:4px;" + (assignedElsewhere ? "opacity:0.4;" : "cursor:pointer;") + (!assignedElsewhere ? "cursor:pointer;" : "") });
+        if (!assignedElsewhere) cbRow.onmouseenter = () => { cbRow.style.background = "#f1f5f9"; };
+        if (!assignedElsewhere) cbRow.onmouseleave = () => { cbRow.style.background = ""; };
+
+        const cb = _el("input", cbRow); cb.type = "checkbox"; cb.checked = isChecked; cb.disabled = assignedElsewhere;
+        cb.style.cssText = "width:16px;height:16px;accent-color:#2563eb;flex-shrink:0;cursor:" + (assignedElsewhere ? "not-allowed" : "pointer") + ";";
+
+        // Thumbnail
+        if (loc.photos.length > 0) {
+          const th = _el("div", cbRow, { style: "width:36px;height:36px;border-radius:4px;background:#e5e7eb;flex-shrink:0;background-size:cover;background-position:center;" });
+          getPhotoBlobUrl(loc.photos[0].id).then(url => { if (url) th.style.backgroundImage = "url(" + url + ")"; });
+        }
+
+        _el("span", cbRow, { text: loc.title, style: "flex:1;font-size:0.8rem;color:#1e293b;" });
+        _el("span", cbRow, { text: loc.photos.length + "\uD83D\uDCF7", style: "font-size:0.7rem;color:#94a3b8;" });
+
+        cb.onchange = () => {
+          if (cb.checked) { sec.locationIds.push(loc.id); }
+          else { sec.locationIds = sec.locationIds.filter(id => id !== loc.id); }
+          render();
+        };
+        if (!assignedElsewhere) cbRow.onclick = (e) => { if (e.target !== cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event("change")); } };
+      });
+
+      // Blog text
+      const textArea = _el("textarea", block, { style: "width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.8rem;resize:vertical;min-height:60px;font-family:inherit;" });
+      textArea.rows = 3; textArea.placeholder = "Write about this section..."; textArea.value = sec.text;
+      textArea.oninput = () => { sec.text = textArea.value; };
+    });
+
+    if (sections.length === 0) {
+      _el("div", secContainer, { text: "No sections yet. Click '+ Add Section' to create one.", style: "text-align:center;padding:20px;color:#94a3b8;font-size:0.85rem;" });
     }
   }
 
-  // ── Finish: Save to localStorage ──
+  function sortByTrackPos(locs, trackPts) {
+    const sorted = locs.map(loc => {
+      let minD = Infinity, bestIdx = 0;
+      for (let i = 0; i < trackPts.length; i += 5) {
+        const d = Math.abs(loc.lat - trackPts[i].lat) + Math.abs(loc.lng - trackPts[i].lng);
+        if (d < minD) { minD = d; bestIdx = i; }
+      }
+      // Refine
+      const start = Math.max(0, bestIdx - 5), end = Math.min(trackPts.length - 1, bestIdx + 5);
+      for (let i = start; i <= end; i++) {
+        const d = Math.abs(loc.lat - trackPts[i].lat) + Math.abs(loc.lng - trackPts[i].lng);
+        if (d < minD) { minD = d; bestIdx = i; }
+      }
+      return { loc, idx: bestIdx };
+    });
+    sorted.sort((a, b) => a.idx - b.idx);
+    return sorted.map(s => s.loc);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ── Step 5: Review & Create ──
+  // ══════════════════════════════════════════════════════════
+  function renderStep5(ct) {
+    const totalPhotos = locations.reduce((s, l) => s + l.photos.length, 0);
+
+    // Summary card
+    const summary = _el("div", ct, { style: "background:#f0faf4;border-radius:10px;padding:20px;margin-bottom:16px;" });
+    _el("div", summary, { text: config.name || "Untitled Trip", style: "font-size:1.1rem;font-weight:700;color:#1e293b;margin-bottom:10px;" });
+    const grid = _el("div", summary, { style: "display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.8rem;color:#475569;" });
+    grid.innerHTML = `
+      <div>Date: <strong>${config.date || "\u2014"}${config.endDate ? " \u2013 " + config.endDate : ""}</strong></div>
+      <div>Region: <strong>${config.region || "\u2014"}</strong></div>
+      <div>Template: <strong>${config.template}</strong></div>
+      <div>Map: <strong>${MAP_STYLES[config.mapStyle]?.name || config.mapStyle}</strong></div>
+      <div>Locations: <strong>${locations.length}</strong></div>
+      <div>Photos: <strong>${totalPhotos}</strong></div>
+      <div>Sections: <strong>${sections.length}</strong></div>
+      ${gpxData ? "<div>Distance: <strong>" + gpxData.totalDistanceKm + " km</strong></div>" : ""}
+    `;
+
+    // Outline
+    _el("h3", ct, { text: "Journal Structure", style: "font-size:0.9rem;font-weight:600;color:#1e293b;margin:16px 0 8px;" });
+    const outline = _el("div", ct, { style: "max-height:280px;overflow-y:auto;" });
+
+    if (sections.length > 0) {
+      sections.forEach(sec => {
+        const secRow = _el("div", outline, { style: "padding:6px 0;border-bottom:1px solid #f1f5f9;" });
+        _el("div", secRow, { text: "### " + sec.title, style: "font-size:0.85rem;font-weight:600;color:#1e293b;" });
+        const secLocs = locations.filter(l => sec.locationIds.includes(l.id));
+        secLocs.forEach(loc => {
+          _el("div", secRow, { text: "\u00a0\u00a0\u00a0\u00a0\u{1F4CD} " + loc.title + " (" + loc.photos.length + " photos)", style: "font-size:0.78rem;color:#64748b;margin:2px 0;" });
+        });
+        if (sec.text) _el("div", secRow, { text: "\u00a0\u00a0\u00a0\u00a0\u270D\uFE0F " + sec.text.slice(0, 60) + (sec.text.length > 60 ? "..." : ""), style: "font-size:0.75rem;color:#94a3b8;font-style:italic;" });
+      });
+    } else {
+      locations.forEach(loc => {
+        _el("div", outline, { text: "\u{1F4CD} " + loc.title + " \u2014 " + loc.photos.length + " photos", style: "font-size:0.8rem;color:#475569;padding:4px 0;border-bottom:1px solid #f1f5f9;" });
+      });
+    }
+
+    if (locations.length === 0 && sections.length === 0) {
+      _el("div", outline, { text: "Empty trip. You can still create it and edit later.", style: "text-align:center;padding:16px;color:#94a3b8;font-size:0.85rem;" });
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ── Finish: Save Trip ──
+  // ══════════════════════════════════════════════════════════
   async function finishWizard() {
     const tripId = "trip-" + Date.now();
+
+    // Build waypoints from sections or locations
+    let waypoints;
+    if (sections.length > 0) {
+      waypoints = [];
+      sections.forEach(sec => {
+        const secLocs = locations.filter(l => sec.locationIds.includes(l.id));
+        secLocs.forEach(loc => {
+          waypoints.push({
+            id: loc.id, title: loc.title, sectionTitle: sec.title,
+            lat: loc.lat, lng: loc.lng, alt: null,
+            blog: sec.text || loc.description || "",
+            photos: loc.photos.map(p => ({ id: p.id, imageUrl: "idb://" + p.id, title: p.title }))
+          });
+        });
+      });
+      // Add locations not in any section
+      const assignedIds = new Set(sections.flatMap(s => s.locationIds));
+      locations.filter(l => !assignedIds.has(l.id)).forEach(loc => {
+        waypoints.push({
+          id: loc.id, title: loc.title, sectionTitle: loc.title,
+          lat: loc.lat, lng: loc.lng, alt: null, blog: loc.description || "",
+          photos: loc.photos.map(p => ({ id: p.id, imageUrl: "idb://" + p.id, title: p.title }))
+        });
+      });
+    } else {
+      waypoints = locations.map(loc => ({
+        id: loc.id, title: loc.title, sectionTitle: loc.title,
+        lat: loc.lat, lng: loc.lng, alt: null, blog: loc.description || "",
+        photos: loc.photos.map(p => ({ id: p.id, imageUrl: "idb://" + p.id, title: p.title }))
+      }));
+    }
+
     const trip = {
-      id: tripId,
-      version: 5,
-      _isLocal: true,
-      _created: Date.now(),
-      file: tripId, // used as identifier for openTrip
-      name: tripName || "Untitled Trip",
-      date: tripDate,
-      region: tripRegion,
-      template: template,
-      mapStyle: mapStyle,
+      id: tripId, version: 5, _isLocal: true, _created: Date.now(),
+      file: tripId,
+      name: config.name || "Untitled Trip",
+      date: config.date, region: config.region, description: config.description,
+      template: config.template, mapStyle: config.mapStyle,
       stats: gpxData ? { distanceKm: gpxData.totalDistanceKm, elevationGainM: gpxData.elevationGainM, elevationLossM: gpxData.elevationLossM } : {},
       gpxTrack: gpxData ? gpxData.trackPoints : [],
-      waypoints: locations.map(loc => ({
-        id: loc.id,
-        title: loc.title,
-        sectionTitle: loc.title,
-        lat: loc.lat,
-        lng: loc.lng,
-        alt: null,
-        blog: "",
-        photos: loc.photos.map(p => ({ id: p.id, imageUrl: "idb://" + p.id, title: p.title }))
-      }))
+      waypoints
     };
 
     saveLocalTrip(trip);
+    destroyMap();
     overlay.remove();
 
-    // Refresh trip list and open the new trip
     tripsData = await loadTripIndex();
     renderTripList();
     openTrip(tripId);
