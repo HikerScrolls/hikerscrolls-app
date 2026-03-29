@@ -47,6 +47,17 @@ body { margin: 0; padding: 0; font-family: var(--font-text); color: var(--text-n
 .sidebar-title { font-size: 1.3rem; font-weight: 300; letter-spacing: 0.03em; margin: 0 0 2px; color: var(--text-normal); }
 .sidebar-subtitle { font-size: 0.75rem; color: var(--text-faint); margin: 0; font-style: italic; }
 
+/* Create New Trip button */
+.sidebar-create { padding: 12px 24px 0; }
+.create-trip-btn {
+  width: 100%; padding: 9px 14px; border: 1.5px dashed #2d6a4f; border-radius: 8px;
+  background: #f0faf4; color: #2d6a4f; font-size: 0.82rem; font-weight: 600;
+  font-family: var(--font-text); cursor: pointer; display: flex; align-items: center;
+  justify-content: center; gap: 6px; transition: all 0.2s;
+}
+.create-trip-btn:hover { background: #dcf5e7; border-color: #1b4332; }
+.create-trip-btn svg { flex-shrink: 0; }
+
 /* Search */
 .sidebar-search { padding: 12px 24px 0; }
 .search-input {

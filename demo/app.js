@@ -10,6 +10,678 @@ const POOL = 600;
 const CAM_OX = 0.7;
 const CAM_OY = 0.5;
 
+
+// ══════════════════════════════════════════════════════════════
+// ══ A2: GPX Parser (ported from plugin) ══════════════════════
+// ══════════════════════════════════════════════════════════════
+
+function _gpxText(el, sel) { return el.querySelector(sel)?.textContent?.trim() || null; }
+function _gpxNum(el, sel) { const t = _gpxText(el, sel); return t ? (isNaN(+t) ? undefined : +t) : undefined; }
+function _toRad(d) { return d * Math.PI / 180; }
+function _haversineKm(lat1, lng1, lat2, lng2) {
+  const dLat = _toRad(lat2 - lat1), dLng = _toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(_toRad(lat1)) * Math.cos(_toRad(lat2)) * Math.sin(dLng/2)**2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function parseGpx(xmlString) {
+  const doc = new DOMParser().parseFromString(xmlString, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("Invalid GPX file");
+  const name = _gpxText(doc, "metadata > name") || _gpxText(doc, "trk > name") || "Unnamed Trail";
+  const trackPoints = [];
+  doc.querySelectorAll("trkpt").forEach(el => {
+    const lat = parseFloat(el.getAttribute("lat")||"0"), lng = parseFloat(el.getAttribute("lon")||"0");
+    if (lat || lng) trackPoints.push({ lat, lng, ele: _gpxNum(el, "ele"), time: _gpxText(el, "time") || undefined });
+  });
+  if (!trackPoints.length) {
+    doc.querySelectorAll("rtept").forEach(el => {
+      const lat = parseFloat(el.getAttribute("lat")||"0"), lng = parseFloat(el.getAttribute("lon")||"0");
+      if (lat || lng) trackPoints.push({ lat, lng, ele: _gpxNum(el, "ele") });
+    });
+  }
+  if (!trackPoints.length) throw new Error("GPX file contains no track data");
+  const lats = trackPoints.map(p => p.lat), lngs = trackPoints.map(p => p.lng);
+  const bounds = { north: Math.max(...lats), south: Math.min(...lats), east: Math.max(...lngs), west: Math.min(...lngs) };
+  const latPad = (bounds.north - bounds.south) * 0.1 || 0.01, lngPad = (bounds.east - bounds.west) * 0.1 || 0.01;
+  bounds.north += latPad; bounds.south -= latPad; bounds.east += lngPad; bounds.west -= lngPad;
+  let totalDistanceKm = 0, elevationGainM = 0, elevationLossM = 0;
+  for (let i = 1; i < trackPoints.length; i++) {
+    totalDistanceKm += _haversineKm(trackPoints[i-1].lat, trackPoints[i-1].lng, trackPoints[i].lat, trackPoints[i].lng);
+    if (trackPoints[i-1].ele != null && trackPoints[i].ele != null) {
+      const diff = trackPoints[i].ele - trackPoints[i-1].ele;
+      if (diff > 0) elevationGainM += diff; else elevationLossM += Math.abs(diff);
+    }
+  }
+  return { name, trackPoints, bounds, totalDistanceKm: Math.round(totalDistanceKm * 100) / 100, elevationGainM: Math.round(elevationGainM), elevationLossM: Math.round(elevationLossM) };
+}
+
+// ══════════════════════════════════════════════════════════════
+// ══ A3: EXIF GPS Extractor (pure JS, no library) ═════════════
+// ══════════════════════════════════════════════════════════════
+
+function extractExifGps(arrayBuffer) {
+  const result = { hasGps: false };
+  try {
+    const view = new DataView(arrayBuffer);
+    if (view.getUint16(0) !== 0xFFD8) return result; // not JPEG
+    let offset = 2;
+    while (offset < view.byteLength - 1) {
+      const marker = view.getUint16(offset);
+      if (marker === 0xFFE1) { // APP1 (EXIF)
+        const len = view.getUint16(offset + 2);
+        const exifData = arrayBuffer.slice(offset + 4, offset + 2 + len);
+        return _parseExifBlock(exifData);
+      }
+      if ((marker & 0xFF00) !== 0xFF00) break;
+      offset += 2 + view.getUint16(offset + 2);
+    }
+  } catch (e) {}
+  return result;
+}
+
+function _parseExifBlock(buffer) {
+  const result = { hasGps: false };
+  const view = new DataView(buffer);
+  // Check "Exif\0\0"
+  if (view.getUint32(0) !== 0x45786966 || view.getUint16(4) !== 0) return result;
+  const tiffStart = 6;
+  const le = view.getUint16(tiffStart) === 0x4949; // little-endian?
+  const g16 = (o) => le ? view.getUint16(tiffStart + o, true) : view.getUint16(tiffStart + o, false);
+  const g32 = (o) => le ? view.getUint32(tiffStart + o, true) : view.getUint32(tiffStart + o, false);
+  // Read IFD0
+  const ifd0Offset = g32(4);
+  const ifd0Count = g16(ifd0Offset);
+  let gpsIFDOffset = 0;
+  for (let i = 0; i < ifd0Count; i++) {
+    const entryOffset = ifd0Offset + 2 + i * 12;
+    const tag = g16(entryOffset);
+    if (tag === 0x8825) { // GPSInfoIFDPointer
+      gpsIFDOffset = g32(entryOffset + 8);
+      break;
+    }
+  }
+  if (!gpsIFDOffset) return result;
+  // Read GPS IFD
+  const gpsCount = g16(gpsIFDOffset);
+  let latRef = "N", lngRef = "E", latVals = null, lngVals = null, altVal = null;
+  for (let i = 0; i < gpsCount; i++) {
+    const eo = gpsIFDOffset + 2 + i * 12;
+    if (eo + 12 > view.byteLength - tiffStart) break;
+    const tag = g16(eo);
+    const type = g16(eo + 2);
+    const valOffset = g32(eo + 8);
+    if (tag === 1) { // GPSLatitudeRef
+      latRef = String.fromCharCode(view.getUint8(tiffStart + eo + 8));
+    } else if (tag === 2 && type === 5) { // GPSLatitude (3 rationals)
+      latVals = _readRationals(view, tiffStart, valOffset, 3, le);
+    } else if (tag === 3) { // GPSLongitudeRef
+      lngRef = String.fromCharCode(view.getUint8(tiffStart + eo + 8));
+    } else if (tag === 4 && type === 5) { // GPSLongitude
+      lngVals = _readRationals(view, tiffStart, valOffset, 3, le);
+    } else if (tag === 6 && type === 5) { // GPSAltitude
+      const r = _readRationals(view, tiffStart, valOffset, 1, le);
+      if (r) altVal = r[0];
+    }
+  }
+  if (latVals && lngVals) {
+    let lat = latVals[0] + latVals[1] / 60 + latVals[2] / 3600;
+    let lng = lngVals[0] + lngVals[1] / 60 + lngVals[2] / 3600;
+    if (latRef === "S") lat = -lat;
+    if (lngRef === "W") lng = -lng;
+    if (lat !== 0 || lng !== 0) {
+      result.hasGps = true; result.lat = lat; result.lng = lng;
+      if (altVal != null) result.alt = altVal;
+    }
+  }
+  return result;
+}
+
+function _readRationals(view, tiffStart, offset, count, le) {
+  try {
+    const vals = [];
+    for (let i = 0; i < count; i++) {
+      const o = tiffStart + offset + i * 8;
+      const num = le ? view.getUint32(o, true) : view.getUint32(o, false);
+      const den = le ? view.getUint32(o + 4, true) : view.getUint32(o + 4, false);
+      vals.push(den ? num / den : 0);
+    }
+    return vals;
+  } catch (e) { return null; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ══ A5: IndexedDB Photo Storage ══════════════════════════════
+// ══════════════════════════════════════════════════════════════
+
+const PHOTO_DB_NAME = "hikerscrolls-photos";
+const PHOTO_DB_VERSION = 1;
+const PHOTO_STORE = "photos";
+
+function _openPhotoDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PHOTO_DB_NAME, PHOTO_DB_VERSION);
+    req.onupgradeneeded = () => { req.result.createObjectStore(PHOTO_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function savePhotoToIDB(id, arrayBuffer) {
+  const db = await _openPhotoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE, "readwrite");
+    tx.objectStore(PHOTO_STORE).put(arrayBuffer, id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function getPhotoFromIDB(id) {
+  const db = await _openPhotoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE, "readonly");
+    const req = tx.objectStore(PHOTO_STORE).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function deletePhotoFromIDB(id) {
+  const db = await _openPhotoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE, "readwrite");
+    tx.objectStore(PHOTO_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function compressPhoto(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        blob.arrayBuffer().then(buf => resolve(buf));
+      }, "image/jpeg", 0.8);
+    };
+    img.src = url;
+  });
+}
+
+// Blob URL cache for photos loaded from IndexedDB
+const _photoBlobCache = new Map();
+
+async function getPhotoBlobUrl(photoId) {
+  if (_photoBlobCache.has(photoId)) return _photoBlobCache.get(photoId);
+  const buf = await getPhotoFromIDB(photoId);
+  if (!buf) return null;
+  const blob = new Blob([buf], { type: "image/jpeg" });
+  const url = URL.createObjectURL(blob);
+  _photoBlobCache.set(photoId, url);
+  return url;
+}
+
+// ══════════════════════════════════════════════════════════════
+// ══ A1: localStorage Trip Management ═════════════════════════
+// ══════════════════════════════════════════════════════════════
+
+const LOCAL_TRIPS_KEY = "hikerscrolls_local_trips";
+
+function getLocalTrips() {
+  try { return JSON.parse(localStorage.getItem(LOCAL_TRIPS_KEY) || "[]"); }
+  catch { return []; }
+}
+
+function saveLocalTrips(trips) {
+  localStorage.setItem(LOCAL_TRIPS_KEY, JSON.stringify(trips));
+}
+
+function saveLocalTrip(trip) {
+  const trips = getLocalTrips();
+  const idx = trips.findIndex(t => t.id === trip.id);
+  if (idx >= 0) trips[idx] = trip; else trips.push(trip);
+  saveLocalTrips(trips);
+}
+
+function deleteLocalTrip(tripId) {
+  const trips = getLocalTrips().filter(t => t.id !== tripId);
+  saveLocalTrips(trips);
+  // Also clean up photos from IndexedDB
+  const trip = getLocalTrips().find(t => t.id === tripId);
+  if (trip?.waypoints) {
+    for (const wp of trip.waypoints) {
+      for (const ph of (wp.photos || [])) {
+        deletePhotoFromIDB(ph.id).catch(() => {});
+      }
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ══ A4: Creation Wizard (3-step) ═════════════════════════════
+// ══════════════════════════════════════════════════════════════
+
+function showCreationWizard() {
+  const existing = document.querySelector(".hj-wizard-overlay");
+  if (existing) existing.remove();
+
+  // Wizard state
+  let step = 1;
+  let tripName = "";
+  let tripDate = new Date().toISOString().split("T")[0];
+  let tripRegion = "";
+  let template = "scrollytelling";
+  let mapStyle = "opentopomap";
+  let gpxData = null; // parsed GPX
+  let locations = []; // {id, title, lat, lng, photos: [{id, title}]}
+  let photoBuffers = new Map(); // id → ArrayBuffer
+  let photoCounter = 0;
+  let locCounter = 0;
+
+  // Overlay
+  const overlay = document.createElement("div");
+  overlay.className = "hj-wizard-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+
+  const modal = document.createElement("div");
+  modal.className = "hj-wizard-modal";
+  modal.style.cssText = "background:white;border-radius:16px;max-width:700px;width:95%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;";
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  function render() {
+    modal.innerHTML = "";
+
+    // Header
+    const header = document.createElement("div");
+    header.style.cssText = "padding:20px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;";
+    const title = document.createElement("div");
+    title.style.cssText = "font-size:1rem;font-weight:600;color:#1e293b;";
+    title.textContent = "Create New Trip — Step " + step + " of 3";
+    header.appendChild(title);
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "\u00d7";
+    closeBtn.style.cssText = "background:none;border:none;font-size:1.5rem;cursor:pointer;color:#94a3b8;padding:0 4px;";
+    closeBtn.onclick = () => overlay.remove();
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
+
+    // Step progress
+    const progress = document.createElement("div");
+    progress.style.cssText = "display:flex;gap:4px;padding:0 24px;margin-top:12px;";
+    for (let i = 1; i <= 3; i++) {
+      const dot = document.createElement("div");
+      dot.style.cssText = "flex:1;height:4px;border-radius:2px;background:" + (i <= step ? "#2d6a4f" : "#e5e7eb") + ";transition:background 0.3s;";
+      progress.appendChild(dot);
+    }
+    modal.appendChild(progress);
+
+    // Content
+    const content = document.createElement("div");
+    content.style.cssText = "flex:1;overflow-y:auto;padding:20px 24px;";
+
+    if (step === 1) renderStep1(content);
+    else if (step === 2) renderStep2(content);
+    else if (step === 3) renderStep3(content);
+
+    modal.appendChild(content);
+
+    // Footer
+    const footer = document.createElement("div");
+    footer.style.cssText = "padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;";
+    if (step > 1) {
+      const backBtn = document.createElement("button");
+      backBtn.textContent = "Back";
+      backBtn.style.cssText = "padding:8px 20px;border:1px solid #d1d5db;border-radius:8px;background:white;cursor:pointer;font-size:0.85rem;";
+      backBtn.onclick = () => { step--; render(); };
+      footer.appendChild(backBtn);
+    } else {
+      footer.appendChild(document.createElement("div"));
+    }
+    if (step < 3) {
+      const nextBtn = document.createElement("button");
+      nextBtn.textContent = "Next";
+      nextBtn.style.cssText = "padding:8px 20px;border:none;border-radius:8px;background:#2d6a4f;color:white;cursor:pointer;font-size:0.85rem;font-weight:500;";
+      nextBtn.onclick = () => {
+        if (step === 1 && !tripName.trim()) { alert("Please enter a trip name"); return; }
+        step++; render();
+      };
+      footer.appendChild(nextBtn);
+    } else {
+      const finishBtn = document.createElement("button");
+      finishBtn.textContent = "Create Trip";
+      finishBtn.style.cssText = "padding:8px 20px;border:none;border-radius:8px;background:#2d6a4f;color:white;cursor:pointer;font-size:0.85rem;font-weight:500;";
+      finishBtn.onclick = () => finishWizard();
+      footer.appendChild(finishBtn);
+    }
+    modal.appendChild(footer);
+  }
+
+  // ── Step 1: Basic Info + GPX ──
+  function renderStep1(container) {
+    const inputStyle = "width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.85rem;margin-bottom:14px;";
+    const labelStyle = "display:block;font-size:0.8rem;font-weight:500;color:#475569;margin-bottom:4px;";
+
+    // Name
+    const nameLabel = document.createElement("label"); nameLabel.textContent = "Trip Name *"; nameLabel.style.cssText = labelStyle; container.appendChild(nameLabel);
+    const nameInput = document.createElement("input"); nameInput.value = tripName; nameInput.placeholder = "e.g. Kumano Kodo Day 1";
+    nameInput.style.cssText = inputStyle; nameInput.oninput = () => { tripName = nameInput.value; };
+    container.appendChild(nameInput);
+
+    // Date + Region row
+    const row = document.createElement("div"); row.style.cssText = "display:flex;gap:12px;";
+    const dateWrap = document.createElement("div"); dateWrap.style.cssText = "flex:1;";
+    const dateLabel = document.createElement("label"); dateLabel.textContent = "Date"; dateLabel.style.cssText = labelStyle; dateWrap.appendChild(dateLabel);
+    const dateInput = document.createElement("input"); dateInput.type = "date"; dateInput.value = tripDate;
+    dateInput.style.cssText = inputStyle; dateInput.onchange = () => { tripDate = dateInput.value; };
+    dateWrap.appendChild(dateInput); row.appendChild(dateWrap);
+
+    const regWrap = document.createElement("div"); regWrap.style.cssText = "flex:1;";
+    const regLabel = document.createElement("label"); regLabel.textContent = "Region"; regLabel.style.cssText = labelStyle; regWrap.appendChild(regLabel);
+    const regInput = document.createElement("input"); regInput.value = tripRegion; regInput.placeholder = "e.g. Wakayama, Japan";
+    regInput.style.cssText = inputStyle; regInput.oninput = () => { tripRegion = regInput.value; };
+    regWrap.appendChild(regInput); row.appendChild(regWrap);
+    container.appendChild(row);
+
+    // Template + Map Style row
+    const row2 = document.createElement("div"); row2.style.cssText = "display:flex;gap:12px;";
+    const tmplWrap = document.createElement("div"); tmplWrap.style.cssText = "flex:1;";
+    const tmplLabel = document.createElement("label"); tmplLabel.textContent = "Template"; tmplLabel.style.cssText = labelStyle; tmplWrap.appendChild(tmplLabel);
+    const tmplSel = document.createElement("select"); tmplSel.style.cssText = inputStyle;
+    [{v:"scrollytelling",l:"Scrollytelling"},{v:"scrapbook",l:"Scrapbook"},{v:"illustrated",l:"Illustrated"}].forEach(o => {
+      const opt = document.createElement("option"); opt.value = o.v; opt.textContent = o.l; if (o.v === template) opt.selected = true; tmplSel.appendChild(opt);
+    });
+    tmplSel.onchange = () => { template = tmplSel.value; }; tmplWrap.appendChild(tmplSel); row2.appendChild(tmplWrap);
+
+    const msWrap = document.createElement("div"); msWrap.style.cssText = "flex:1;";
+    const msLabel = document.createElement("label"); msLabel.textContent = "Map Style"; msLabel.style.cssText = labelStyle; msWrap.appendChild(msLabel);
+    const msSel = document.createElement("select"); msSel.style.cssText = inputStyle;
+    Object.entries(MAP_STYLES).forEach(([k, v]) => {
+      const opt = document.createElement("option"); opt.value = k; opt.textContent = v.name; if (k === mapStyle) opt.selected = true; msSel.appendChild(opt);
+    });
+    msSel.onchange = () => { mapStyle = msSel.value; }; msWrap.appendChild(msSel); row2.appendChild(msWrap);
+    container.appendChild(row2);
+
+    // GPX Upload
+    const gpxLabel = document.createElement("label"); gpxLabel.textContent = "GPX File"; gpxLabel.style.cssText = labelStyle; container.appendChild(gpxLabel);
+    const dropZone = document.createElement("div");
+    dropZone.style.cssText = "border:2px dashed " + (gpxData ? "#2d6a4f" : "#d1d5db") + ";border-radius:10px;padding:24px;text-align:center;cursor:pointer;margin-bottom:14px;background:" + (gpxData ? "#f0faf4" : "#fafafa") + ";transition:all 0.2s;";
+    if (gpxData) {
+      dropZone.innerHTML = "<div style='color:#2d6a4f;font-weight:600;margin-bottom:4px;'>" + gpxData.name + "</div><div style='font-size:0.8rem;color:#64748b;'>" + gpxData.trackPoints.length + " points · " + gpxData.totalDistanceKm + " km · ↑" + gpxData.elevationGainM + "m</div>";
+    } else {
+      dropZone.innerHTML = "<div style='font-size:0.85rem;color:#94a3b8;'>Drop a .gpx file here or click to browse</div>";
+    }
+    const fileInput = document.createElement("input"); fileInput.type = "file"; fileInput.accept = ".gpx"; fileInput.style.display = "none";
+    fileInput.onchange = async (e) => { if (e.target.files[0]) await handleGpxFile(e.target.files[0]); render(); };
+    dropZone.onclick = () => fileInput.click();
+    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.borderColor = "#2d6a4f"; dropZone.style.background = "#f0faf4"; };
+    dropZone.ondragleave = () => { if (!gpxData) { dropZone.style.borderColor = "#d1d5db"; dropZone.style.background = "#fafafa"; } };
+    dropZone.ondrop = async (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { await handleGpxFile(f); render(); } };
+    container.appendChild(dropZone);
+    container.appendChild(fileInput);
+  }
+
+  async function handleGpxFile(file) {
+    try {
+      const text = await file.text();
+      gpxData = parseGpx(text);
+    } catch (e) {
+      alert("Failed to parse GPX: " + e.message);
+      gpxData = null;
+    }
+  }
+
+  // ── Step 2: Locations + Photos ──
+  function renderStep2(container) {
+    const labelStyle = "display:block;font-size:0.8rem;font-weight:500;color:#475569;margin-bottom:6px;";
+
+    // Auto-generate button (if GPX)
+    if (gpxData && gpxData.trackPoints.length > 0) {
+      const autoRow = document.createElement("div"); autoRow.style.cssText = "margin-bottom:14px;display:flex;gap:8px;align-items:center;";
+      const autoBtn = document.createElement("button");
+      autoBtn.textContent = "Auto-Generate Locations from GPX";
+      autoBtn.style.cssText = "padding:8px 16px;border:1px solid #2d6a4f;border-radius:8px;background:#f0faf4;color:#2d6a4f;cursor:pointer;font-size:0.8rem;font-weight:500;";
+      autoBtn.onclick = () => { autoGenerateLocations(); render(); };
+      autoRow.appendChild(autoBtn);
+      const addBtn = document.createElement("button");
+      addBtn.textContent = "+ Add Location Manually";
+      addBtn.style.cssText = "padding:8px 16px;border:1px solid #d1d5db;border-radius:8px;background:white;cursor:pointer;font-size:0.8rem;";
+      addBtn.onclick = () => { addManualLocation(); render(); };
+      autoRow.appendChild(addBtn);
+      container.appendChild(autoRow);
+    } else {
+      const addBtn = document.createElement("button");
+      addBtn.textContent = "+ Add Location";
+      addBtn.style.cssText = "padding:8px 16px;border:1px solid #d1d5db;border-radius:8px;background:white;cursor:pointer;font-size:0.8rem;margin-bottom:14px;";
+      addBtn.onclick = () => { addManualLocation(); render(); };
+      container.appendChild(addBtn);
+    }
+
+    // Location list
+    if (locations.length === 0) {
+      const hint = document.createElement("div");
+      hint.style.cssText = "text-align:center;padding:24px;color:#94a3b8;font-size:0.85rem;";
+      hint.textContent = gpxData ? "Click 'Auto-Generate' to create locations along your route" : "Add locations for your trip";
+      container.appendChild(hint);
+    }
+
+    for (let li = 0; li < locations.length; li++) {
+      const loc = locations[li];
+      const locCard = document.createElement("div");
+      locCard.style.cssText = "border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafafa;";
+
+      // Location header row
+      const locHeader = document.createElement("div"); locHeader.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:8px;";
+      const locNum = document.createElement("div");
+      locNum.style.cssText = "width:24px;height:24px;border-radius:50%;background:#2d6a4f;color:white;font-size:0.7rem;display:flex;align-items:center;justify-content:center;font-weight:600;flex-shrink:0;";
+      locNum.textContent = li + 1;
+      locHeader.appendChild(locNum);
+      const locInput = document.createElement("input"); locInput.value = loc.title; locInput.placeholder = "Location name";
+      locInput.style.cssText = "flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.8rem;";
+      locInput.oninput = () => { loc.title = locInput.value; };
+      locHeader.appendChild(locInput);
+      const coordSpan = document.createElement("span");
+      coordSpan.style.cssText = "font-size:0.7rem;color:#94a3b8;white-space:nowrap;";
+      coordSpan.textContent = loc.lat.toFixed(4) + ", " + loc.lng.toFixed(4);
+      locHeader.appendChild(coordSpan);
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "\u00d7";
+      delBtn.style.cssText = "background:none;border:none;color:#ef4444;font-size:1.2rem;cursor:pointer;padding:0 4px;";
+      delBtn.onclick = () => { locations.splice(li, 1); render(); };
+      locHeader.appendChild(delBtn);
+      locCard.appendChild(locHeader);
+
+      // Photo drop zone for this location
+      const photoDrop = document.createElement("div");
+      photoDrop.style.cssText = "border:1px dashed #d1d5db;border-radius:8px;padding:8px;min-height:40px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;cursor:pointer;";
+      photoDrop.ondragover = (e) => { e.preventDefault(); photoDrop.style.borderColor = "#2d6a4f"; photoDrop.style.background = "#f0faf4"; };
+      photoDrop.ondragleave = () => { photoDrop.style.borderColor = "#d1d5db"; photoDrop.style.background = ""; };
+      photoDrop.ondrop = async (e) => { e.preventDefault(); photoDrop.style.borderColor = "#d1d5db"; photoDrop.style.background = "";
+        await handlePhotoFiles(e.dataTransfer.files, loc); render();
+      };
+      const photoInput = document.createElement("input"); photoInput.type = "file"; photoInput.accept = "image/*"; photoInput.multiple = true; photoInput.style.display = "none";
+      photoInput.onchange = async (e) => { await handlePhotoFiles(e.target.files, loc); render(); };
+      photoDrop.onclick = (e) => { if (e.target === photoDrop || e.target.classList.contains("photo-hint")) photoInput.click(); };
+
+      if (loc.photos.length === 0) {
+        const hint = document.createElement("span"); hint.className = "photo-hint";
+        hint.style.cssText = "font-size:0.75rem;color:#94a3b8;"; hint.textContent = "Drop photos here or click to add";
+        photoDrop.appendChild(hint);
+      } else {
+        for (let pi = 0; pi < loc.photos.length; pi++) {
+          const ph = loc.photos[pi];
+          const thumb = document.createElement("div");
+          thumb.style.cssText = "width:48px;height:48px;border-radius:4px;background:#e5e7eb;position:relative;overflow:hidden;flex-shrink:0;";
+          // Load thumbnail async
+          getPhotoBlobUrl(ph.id).then(url => { if (url) thumb.style.backgroundImage = "url(" + url + ")"; thumb.style.backgroundSize = "cover"; thumb.style.backgroundPosition = "center"; });
+          const pDel = document.createElement("div");
+          pDel.style.cssText = "position:absolute;top:1px;right:1px;width:14px;height:14px;border-radius:50%;background:rgba(239,68,68,0.8);color:white;font-size:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;";
+          pDel.textContent = "\u00d7";
+          pDel.onclick = (e) => { e.stopPropagation(); loc.photos.splice(pi, 1); deletePhotoFromIDB(ph.id).catch(()=>{}); photoBuffers.delete(ph.id); render(); };
+          thumb.appendChild(pDel);
+          photoDrop.appendChild(thumb);
+        }
+      }
+      locCard.appendChild(photoDrop);
+      locCard.appendChild(photoInput);
+      container.appendChild(locCard);
+    }
+  }
+
+  function autoGenerateLocations() {
+    if (!gpxData) return;
+    const pts = gpxData.trackPoints;
+    const numStops = Math.min(8, Math.max(2, Math.floor(gpxData.totalDistanceKm / 3)));
+    const interval = Math.max(1, Math.floor(pts.length / numStops));
+    locations = [];
+    for (let i = 0; i < pts.length; i += interval) {
+      locCounter++;
+      locations.push({ id: "loc-" + locCounter, title: "Location " + locations.length + 1, lat: pts[i].lat, lng: pts[i].lng, photos: [] });
+    }
+    // Always add last point
+    const last = pts[pts.length - 1];
+    if (locations.length > 0 && (locations[locations.length-1].lat !== last.lat || locations[locations.length-1].lng !== last.lng)) {
+      locCounter++;
+      locations.push({ id: "loc-" + locCounter, title: "End Point", lat: last.lat, lng: last.lng, photos: [] });
+    }
+  }
+
+  function addManualLocation() {
+    locCounter++;
+    const lat = gpxData ? gpxData.trackPoints[Math.floor(gpxData.trackPoints.length/2)].lat : 0;
+    const lng = gpxData ? gpxData.trackPoints[Math.floor(gpxData.trackPoints.length/2)].lng : 0;
+    locations.push({ id: "loc-" + locCounter, title: "New Location", lat, lng, photos: [] });
+  }
+
+  async function handlePhotoFiles(files, targetLoc) {
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) continue;
+      photoCounter++;
+      const id = "photo-" + Date.now() + "-" + photoCounter;
+      const compressed = await compressPhoto(file);
+      await savePhotoToIDB(id, compressed);
+      photoBuffers.set(id, compressed);
+
+      // Check EXIF GPS
+      const origBuf = await file.arrayBuffer();
+      const exif = extractExifGps(origBuf);
+
+      const photoEntry = { id, title: file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ") };
+
+      if (targetLoc) {
+        // Explicitly dropped on a location
+        targetLoc.photos.push(photoEntry);
+      } else if (exif.hasGps && locations.length > 0) {
+        // Find nearest location
+        let nearest = locations[0], minDist = Infinity;
+        for (const loc of locations) {
+          const d = _haversineKm(exif.lat, exif.lng, loc.lat, loc.lng);
+          if (d < minDist) { minDist = d; nearest = loc; }
+        }
+        nearest.photos.push(photoEntry);
+      } else if (locations.length > 0) {
+        locations[0].photos.push(photoEntry);
+      }
+    }
+  }
+
+  // ── Step 3: Preview + Finish ──
+  function renderStep3(container) {
+    const summary = document.createElement("div");
+    summary.style.cssText = "background:#f0faf4;border-radius:10px;padding:20px;margin-bottom:16px;";
+    summary.innerHTML = `
+      <div style="font-size:1rem;font-weight:600;color:#1e293b;margin-bottom:12px;">${tripName || "Untitled Trip"}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.8rem;color:#475569;">
+        <div>Date: <strong>${tripDate || "—"}</strong></div>
+        <div>Region: <strong>${tripRegion || "—"}</strong></div>
+        <div>Template: <strong>${template}</strong></div>
+        <div>Map: <strong>${MAP_STYLES[mapStyle]?.name || mapStyle}</strong></div>
+        <div>Locations: <strong>${locations.length}</strong></div>
+        <div>Photos: <strong>${locations.reduce((s,l) => s + l.photos.length, 0)}</strong></div>
+        ${gpxData ? "<div>Distance: <strong>" + gpxData.totalDistanceKm + " km</strong></div><div>Elevation: <strong>↑" + gpxData.elevationGainM + "m</strong></div>" : ""}
+      </div>
+    `;
+    container.appendChild(summary);
+
+    // Location preview
+    for (const loc of locations) {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;";
+      const dot = document.createElement("div");
+      dot.style.cssText = "width:8px;height:8px;border-radius:50%;background:#2d6a4f;flex-shrink:0;";
+      row.appendChild(dot);
+      const locName = document.createElement("div");
+      locName.style.cssText = "flex:1;font-size:0.8rem;color:#1e293b;";
+      locName.textContent = loc.title;
+      row.appendChild(locName);
+      const photoCount = document.createElement("div");
+      photoCount.style.cssText = "font-size:0.75rem;color:#94a3b8;";
+      photoCount.textContent = loc.photos.length + " photo" + (loc.photos.length !== 1 ? "s" : "");
+      row.appendChild(photoCount);
+      container.appendChild(row);
+    }
+
+    if (locations.length === 0) {
+      const hint = document.createElement("div");
+      hint.style.cssText = "text-align:center;padding:20px;color:#94a3b8;font-size:0.85rem;";
+      hint.textContent = "No locations added. You can still create the trip and add locations later.";
+      container.appendChild(hint);
+    }
+  }
+
+  // ── Finish: Save to localStorage ──
+  async function finishWizard() {
+    const tripId = "trip-" + Date.now();
+    const trip = {
+      id: tripId,
+      version: 5,
+      _isLocal: true,
+      _created: Date.now(),
+      file: tripId, // used as identifier for openTrip
+      name: tripName || "Untitled Trip",
+      date: tripDate,
+      region: tripRegion,
+      template: template,
+      mapStyle: mapStyle,
+      stats: gpxData ? { distanceKm: gpxData.totalDistanceKm, elevationGainM: gpxData.elevationGainM, elevationLossM: gpxData.elevationLossM } : {},
+      gpxTrack: gpxData ? gpxData.trackPoints : [],
+      waypoints: locations.map(loc => ({
+        id: loc.id,
+        title: loc.title,
+        sectionTitle: loc.title,
+        lat: loc.lat,
+        lng: loc.lng,
+        alt: null,
+        blog: "",
+        photos: loc.photos.map(p => ({ id: p.id, imageUrl: "idb://" + p.id, title: p.title }))
+      }))
+    };
+
+    saveLocalTrip(trip);
+    overlay.remove();
+
+    // Refresh trip list and open the new trip
+    tripsData = await loadTripIndex();
+    renderTripList();
+    openTrip(tripId);
+  }
+
+  render();
+}
+
+
 const MAP_STYLES = {
   "opentopomap": {
     name: "OpenTopoMap",
@@ -2979,8 +3651,10 @@ let currentSearch = "";
 let activeFile = null;
 
 async function loadTripIndex() {
-  const resp = await fetch("data/trips.json");
-  return resp.json();
+  let serverTrips = [];
+  try { const resp = await fetch("data/trips.json"); serverTrips = await resp.json(); } catch (e) {}
+  const localTrips = getLocalTrips();
+  return [...localTrips, ...serverTrips];
 }
 
 async function loadTripData(filename) {
@@ -3072,6 +3746,26 @@ function renderTripList() {
       info.appendChild(meta);
     }
 
+    // Delete button for local trips
+    if (trip._isLocal) {
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "\u00d7";
+      delBtn.style.cssText = "position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,0.8);color:white;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;z-index:2;";
+      delBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm("Delete '" + trip.name + "'? This cannot be undone.")) {
+          deleteLocalTrip(trip.id);
+          tripsData = await loadTripIndex();
+          renderTripList();
+          if (activeFile === trip.file) backToList();
+        }
+      };
+      card.style.position = "relative";
+      card.addEventListener("mouseenter", () => { delBtn.style.opacity = "1"; });
+      card.addEventListener("mouseleave", () => { delBtn.style.opacity = "0"; });
+      card.appendChild(delBtn);
+    }
+
     card.appendChild(info);
     container.appendChild(card);
   }
@@ -3081,6 +3775,10 @@ function renderTripList() {
 }
 
 function setupSidebar() {
+  // Wire up Create New button
+  const createBtn = document.getElementById("create-trip-btn");
+  if (createBtn) createBtn.addEventListener("click", () => showCreationWizard());
+
   // Wire up HTML buttons
   const langBtn = document.getElementById("lang-toggle");
   if (langBtn) {
@@ -3156,7 +3854,24 @@ async function openTrip(filename) {
   document.getElementById("global-map").style.display = "none";
   const container = document.getElementById("trip-view");
   container.style.display = "";
-  const data = await loadTripData(filename);
+  // Check if it's a local trip
+  const localTrip = getLocalTrips().find(t => t.id === filename || t.file === filename);
+  let data;
+  if (localTrip) {
+    data = localTrip;
+    // Resolve idb:// photo URLs to blob URLs
+    for (const wp of (data.waypoints || [])) {
+      for (const ph of (wp.photos || [])) {
+        if (ph.imageUrl && ph.imageUrl.startsWith("idb://")) {
+          const photoId = ph.imageUrl.replace("idb://", "");
+          const blobUrl = await getPhotoBlobUrl(photoId);
+          if (blobUrl) ph.imageUrl = blobUrl;
+        }
+      }
+    }
+  } else {
+    data = await loadTripData(filename);
+  }
   if (viewer) viewer.destroy();
 
   const template = data.template || "scrollytelling";
