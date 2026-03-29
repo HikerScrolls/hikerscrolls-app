@@ -463,9 +463,9 @@ function showCreationWizard() {
     _el("label", ct, { text: "GPX Route File", style: LS });
     const dz = _el("div", ct, { style: "border:2px dashed " + (gpxData ? "#2d6a4f" : "#d1d5db") + ";border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:" + (gpxData ? "#f0faf4" : "#fafafa") + ";transition:all 0.2s;" });
     if (gpxData) {
-      dz.innerHTML = "<div style='font-weight:600;color:#2d6a4f;margin-bottom:4px;'>\u2705 " + gpxData.name + "</div><div style='font-size:0.8rem;color:#64748b;'>" + gpxData.trackPoints.length + " points \u00b7 " + gpxData.totalDistanceKm + " km \u00b7 \u2191" + gpxData.elevationGainM + "m \u2193" + gpxData.elevationLossM + "m</div><div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Click to replace</div>";
+      dz.innerHTML = "<div style='font-weight:600;color:#2d6a4f;margin-bottom:4px;'>" + gpxData.name + "</div><div style='font-size:0.8rem;color:#64748b;'>" + gpxData.trackPoints.length + " points \u00b7 " + gpxData.totalDistanceKm + " km \u00b7 \u2191" + gpxData.elevationGainM + "m \u2193" + gpxData.elevationLossM + "m</div><div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Click to replace</div>";
     } else {
-      dz.innerHTML = "<div style='font-size:1.5rem;margin-bottom:4px;'>\uD83D\uDCC1</div><div style='font-size:0.85rem;color:#94a3b8;'>Drop a .gpx file here or click to browse</div>";
+      dz.innerHTML = "<div style='margin-bottom:4px;'><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div><div style='font-size:0.85rem;color:#94a3b8;'>Drop a .gpx file here or click to browse</div>";
     }
     const fi = _el("input", ct); fi.type = "file"; fi.accept = ".gpx"; fi.style.display = "none";
     fi.onchange = async (e) => { if (e.target.files[0]) { await handleGpx(e.target.files[0]); render(); } };
@@ -490,8 +490,8 @@ function showCreationWizard() {
   function renderStep2(ct) {
     // Mode selector
     const modeRow = _el("div", ct, { style: "display:flex;gap:0;margin-bottom:14px;border-radius:8px;overflow:hidden;border:1px solid #d1d5db;" });
-    const manualBtn = _el("button", modeRow, { text: "\uD83D\uDDFA\uFE0F Manual", style: "flex:1;padding:8px;border:none;font-size:0.8rem;font-weight:500;cursor:pointer;" + (!useAiLocation ? "background:#2d6a4f;color:white;" : "background:white;color:#475569;") });
-    const aiBtn = _el("button", modeRow, { text: "\u2728 AI-Assisted", style: "flex:1;padding:8px;border:none;border-left:1px solid #d1d5db;font-size:0.8rem;font-weight:500;cursor:pointer;" + (useAiLocation ? "background:#2d6a4f;color:white;" : "background:white;color:#475569;") });
+    const manualBtn = _el("button", modeRow, { text: "Manual", style: "flex:1;padding:8px;border:none;font-size:0.8rem;font-weight:500;cursor:pointer;" + (!useAiLocation ? "background:#2d6a4f;color:white;" : "background:white;color:#475569;") });
+    const aiBtn = _el("button", modeRow, { text: "AI-Assisted", style: "flex:1;padding:8px;border:none;border-left:1px solid #d1d5db;font-size:0.8rem;font-weight:500;cursor:pointer;" + (useAiLocation ? "background:#2d6a4f;color:white;" : "background:white;color:#475569;") });
     manualBtn.onclick = () => { useAiLocation = false; render(); };
     aiBtn.onclick = () => { useAiLocation = true; render(); };
 
@@ -509,13 +509,13 @@ function showCreationWizard() {
 
     const toolbar = _el("div", ct, { style: "display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;" });
     if (gpxData) {
-      const autoBtn = _el("button", toolbar, { text: "\u26A1 Auto-Generate", style: "padding:7px 14px;border:1px solid #2d6a4f;border-radius:8px;background:#f0faf4;color:#2d6a4f;cursor:pointer;font-size:0.8rem;font-weight:500;" });
+      const autoBtn = _el("button", toolbar, { text: "Auto-Generate", style: "padding:7px 14px;border:1px solid #2d6a4f;border-radius:8px;background:#f0faf4;color:#2d6a4f;cursor:pointer;font-size:0.8rem;font-weight:500;" });
       autoBtn.onclick = () => { autoGenLocations(); render(); };
     }
     const addBtn = _el("button", toolbar, { text: "+ Add Location", style: "padding:7px 14px;border:1px solid #d1d5db;border-radius:8px;background:white;cursor:pointer;font-size:0.8rem;" });
     addBtn.onclick = () => { addManualLoc(); render(); };
     if (locations.length > 0) {
-      const clearBtn = _el("button", toolbar, { text: "\uD83D\uDDD1 Clear All", style: "padding:7px 14px;border:1px solid #fca5a5;border-radius:8px;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:0.8rem;" });
+      const clearBtn = _el("button", toolbar, { text: "Clear All", style: "padding:7px 14px;border:1px solid #fca5a5;border-radius:8px;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:0.8rem;" });
       clearBtn.onclick = () => { if (confirm("Remove all locations?")) { locations = []; render(); } };
     }
 
@@ -543,11 +543,11 @@ function showCreationWizard() {
     const gpsCount = _aiPhotos.filter(p => p.exif?.hasGps).length;
     const noGpsCount = _aiPhotos.length - gpsCount;
     if (_aiPhotos.length > 0) {
-      uploadSection.innerHTML = "<div style='font-weight:600;color:#2d6a4f;margin-bottom:4px;'>\uD83D\uDCF7 " + _aiPhotos.length + " photos ready</div>" +
+      uploadSection.innerHTML = "<div style='font-weight:600;color:#2d6a4f;margin-bottom:4px;'>" + _aiPhotos.length + " photos ready</div>" +
         "<div style='font-size:0.8rem;color:#64748b;'>" + gpsCount + " have GPS (will use directly) \u00b7 " + noGpsCount + " need AI analysis</div>" +
         "<div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Click to add more</div>";
     } else {
-      uploadSection.innerHTML = "<div style='font-size:1.5rem;margin-bottom:4px;'>\uD83D\uDCF7</div><div style='font-size:0.85rem;color:#94a3b8;'>Drop photos here or click to browse</div><div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Photos with GPS will be placed automatically</div>";
+      uploadSection.innerHTML = "<div style='margin-bottom:4px;'><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M28.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg></div><div style='font-size:0.85rem;color:#94a3b8;'>Drop photos here or click to browse</div><div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Photos with GPS will be placed automatically</div>";
     }
     const fi = _el("input", ct); fi.type = "file"; fi.accept = "image/*"; fi.multiple = true; fi.style.display = "none";
     fi.onchange = async (e) => { await importAiPhotos(e.target.files); render(); };
@@ -559,7 +559,7 @@ function showCreationWizard() {
     // Analyze button + status
     if (_aiPhotos.length > 0) {
       const analyzeRow = _el("div", ct, { style: "display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;" });
-      const analyzeBtn = _el("button", analyzeRow, { text: _aiAnalyzing ? "Analyzing..." : "\uD83D\uDD0D Analyze & Create Locations", style: "padding:8px 18px;border:none;border-radius:8px;background:#2d6a4f;color:white;cursor:pointer;font-size:0.8rem;font-weight:500;" + (_aiAnalyzing ? "opacity:0.6;pointer-events:none;" : "") });
+      const analyzeBtn = _el("button", analyzeRow, { text: _aiAnalyzing ? "Analyzing..." : "Analyze & Create Locations", style: "padding:8px 18px;border:none;border-radius:8px;background:#2d6a4f;color:white;cursor:pointer;font-size:0.8rem;font-weight:500;" + (_aiAnalyzing ? "opacity:0.6;pointer-events:none;" : "") });
       analyzeBtn.onclick = () => runAiAnalysis();
 
       if (_aiStatus) {
@@ -570,7 +570,7 @@ function showCreationWizard() {
     // Show results: map + location list (if locations exist from analysis)
     if (locations.length > 0 && _aiPhotos.length > 0) {
       _el("hr", ct, { style: "border:none;border-top:1px solid #e5e7eb;margin:12px 0;" });
-      _el("div", ct, { text: "\u2705 " + locations.length + " locations identified", style: "font-size:0.85rem;font-weight:600;color:#2d6a4f;margin-bottom:10px;" });
+      _el("div", ct, { text: "" + locations.length + " locations identified", style: "font-size:0.85rem;font-weight:600;color:#2d6a4f;margin-bottom:10px;" });
 
       // Split: map + list
       const split = _el("div", ct, { style: "display:flex;gap:12px;" });
@@ -695,7 +695,7 @@ function showCreationWizard() {
     }
 
     _aiAnalyzing = false;
-    _aiStatus = "\u2705 Done! " + locations.length + " locations found.";
+    _aiStatus = "Done! " + locations.length + " locations found.";
     render();
   }
 
@@ -723,12 +723,12 @@ function showCreationWizard() {
       // Coords
       _el("span", row, { text: loc.lat.toFixed(3) + "," + loc.lng.toFixed(3), style: "font-size:0.65rem;color:#94a3b8;white-space:nowrap;font-family:monospace;" });
       // Photo count
-      if (loc.photos.length > 0) _el("span", row, { text: loc.photos.length + "\uD83D\uDCF7", style: "font-size:0.68rem;color:#64748b;" });
+      if (loc.photos.length > 0) _el("span", row, { text: loc.photos.length + " photos", style: "font-size:0.68rem;color:#64748b;" });
       // AI Enrich
-      const enrBtn = _el("button", row, { text: "\u2728", style: "background:none;border:1px solid #d1d5db;border-radius:5px;padding:2px 6px;cursor:pointer;font-size:0.75rem;" });
+      const enrBtn = _el("button", row, { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8Z"/></svg>', style: "background:none;border:1px solid #d1d5db;border-radius:5px;padding:2px 6px;cursor:pointer;font-size:0.75rem;" });
       enrBtn.title = "AI Enrich"; enrBtn.onclick = async () => {
         enrBtn.textContent = "...";
-        try { const info = await enrichLocationWithGemini(loc.lat, loc.lng, loc.title); loc.description = (info.description || "") + (info.highlights ? "\n" + info.highlights.map(h => "- " + h).join("\n") : ""); enrBtn.textContent = "\u2705"; } catch { enrBtn.textContent = "\u274c"; }
+        try { const info = await enrichLocationWithGemini(loc.lat, loc.lng, loc.title); loc.description = (info.description || "") + (info.highlights ? "\n" + info.highlights.map(h => "- " + h).join("\n") : ""); enrBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>'; } catch { enrBtn.textContent = "!"; }
       };
       // Delete
       const del = _el("button", row, { text: "\u00d7", style: "background:none;border:none;color:#ef4444;font-size:1.1rem;cursor:pointer;padding:0 3px;" });
@@ -768,7 +768,7 @@ function showCreationWizard() {
 
     // Global upload zone
     const uploadZone = _el("div", ct, { style: "border:2px dashed #d1d5db;border-radius:10px;padding:14px;text-align:center;cursor:pointer;background:#fafafa;margin-bottom:14px;" });
-    uploadZone.innerHTML = "<div style='font-size:0.85rem;color:#94a3b8;'>\uD83D\uDCF7 Drop photos here to upload (auto-assigns by GPS)</div>";
+    uploadZone.innerHTML = "<div style='font-size:0.85rem;color:#94a3b8;'>Drop photos here to upload (auto-assigns by GPS)</div>";
     const globalFi = _el("input", ct); globalFi.type = "file"; globalFi.accept = "image/*"; globalFi.multiple = true; globalFi.style.display = "none";
     globalFi.onchange = async (e) => { await handlePhotoUpload(e.target.files, null); render(); };
     uploadZone.onclick = () => globalFi.click();
@@ -937,7 +937,7 @@ function showCreationWizard() {
         }
 
         _el("span", cbRow, { text: loc.title, style: "flex:1;font-size:0.8rem;color:#1e293b;" });
-        _el("span", cbRow, { text: loc.photos.length + "\uD83D\uDCF7", style: "font-size:0.7rem;color:#94a3b8;" });
+        _el("span", cbRow, { text: loc.photos.length + " photos", style: "font-size:0.7rem;color:#94a3b8;" });
 
         cb.onchange = () => {
           if (cb.checked) { sec.locationIds.push(loc.id); }
@@ -1014,7 +1014,7 @@ function showCreationWizard() {
       });
     } else {
       locations.forEach(loc => {
-        _el("div", outline, { text: "\u{1F4CD} " + loc.title + " \u2014 " + loc.photos.length + " photos", style: "font-size:0.8rem;color:#475569;padding:4px 0;border-bottom:1px solid #f1f5f9;" });
+        _el("div", outline, { text: "\u2022 " + loc.title + " \u2014 " + loc.photos.length + " photos", style: "font-size:0.8rem;color:#475569;padding:4px 0;border-bottom:1px solid #f1f5f9;" });
       });
     }
 
