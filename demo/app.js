@@ -482,10 +482,31 @@ function showCreationWizard() {
   // ══════════════════════════════════════════════════════════
   // ── Step 2: Select Locations ──
   // ══════════════════════════════════════════════════════════
-  function renderStep2(ct) {
-    _el("p", ct, { text: "Add locations along your route. Click the map or use Auto-Generate.", style: "color:#64748b;font-size:0.85rem;margin:0 0 12px;" });
+  // ── Step 2: Select Locations (Manual + AI-Assisted) ──
+  let _aiPhotos = []; // {id, file, buffer, exif, title}
+  let _aiAnalyzing = false;
+  let _aiStatus = "";
 
-    // Toolbar
+  function renderStep2(ct) {
+    // Mode selector
+    const modeRow = _el("div", ct, { style: "display:flex;gap:0;margin-bottom:14px;border-radius:8px;overflow:hidden;border:1px solid #d1d5db;" });
+    const manualBtn = _el("button", modeRow, { text: "\uD83D\uDDFA\uFE0F Manual", style: "flex:1;padding:8px;border:none;font-size:0.8rem;font-weight:500;cursor:pointer;" + (!useAiLocation ? "background:#2d6a4f;color:white;" : "background:white;color:#475569;") });
+    const aiBtn = _el("button", modeRow, { text: "\u2728 AI-Assisted", style: "flex:1;padding:8px;border:none;border-left:1px solid #d1d5db;font-size:0.8rem;font-weight:500;cursor:pointer;" + (useAiLocation ? "background:#2d6a4f;color:white;" : "background:white;color:#475569;") });
+    manualBtn.onclick = () => { useAiLocation = false; render(); };
+    aiBtn.onclick = () => { useAiLocation = true; render(); };
+
+    const mainArea = _el("div", ct);
+    if (useAiLocation) {
+      renderStep2AI(mainArea);
+    } else {
+      renderStep2Manual(mainArea);
+    }
+  }
+
+  // ── Manual Mode ──
+  function renderStep2Manual(ct) {
+    _el("p", ct, { text: "Click the map to add locations, or use Auto-Generate.", style: "color:#64748b;font-size:0.82rem;margin:0 0 10px;" });
+
     const toolbar = _el("div", ct, { style: "display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;" });
     if (gpxData) {
       const autoBtn = _el("button", toolbar, { text: "\u26A1 Auto-Generate", style: "padding:7px 14px;border:1px solid #2d6a4f;border-radius:8px;background:#f0faf4;color:#2d6a4f;cursor:pointer;font-size:0.8rem;font-weight:500;" });
@@ -498,55 +519,221 @@ function showCreationWizard() {
       clearBtn.onclick = () => { if (confirm("Remove all locations?")) { locations = []; render(); } };
     }
 
-    // Map
     if (gpxData) {
       const mapWrap = _el("div", ct);
       const map = initLeafletMap(mapWrap, { height: 340 });
-
-      // Click map to add location
       map.on("click", (e) => {
         locCounter++;
         locations.push({ id: "loc-" + locCounter, title: "Location " + locations.length, lat: e.latlng.lat, lng: e.latlng.lng, photos: [], gpsSource: "manual", description: "" });
         refreshMapMarkers();
         render();
       });
-
       refreshMapMarkers();
     }
 
-    // Location list
-    if (locations.length === 0) {
-      _el("div", ct, { text: gpxData ? "Click the map or 'Auto-Generate' to add locations" : "Click '+ Add Location' to add stops", style: "text-align:center;padding:20px;color:#94a3b8;font-size:0.85rem;" });
+    renderLocationList(ct);
+  }
+
+  // ── AI-Assisted Mode ──
+  function renderStep2AI(ct) {
+    _el("p", ct, { text: "Upload photos and AI will identify locations from EXIF GPS or image analysis.", style: "color:#64748b;font-size:0.82rem;margin:0 0 10px;" });
+
+    // Photo upload zone
+    const uploadSection = _el("div", ct, { style: "border:2px dashed #d1d5db;border-radius:10px;padding:16px;text-align:center;margin-bottom:14px;background:#fafafa;cursor:pointer;" });
+    const gpsCount = _aiPhotos.filter(p => p.exif?.hasGps).length;
+    const noGpsCount = _aiPhotos.length - gpsCount;
+    if (_aiPhotos.length > 0) {
+      uploadSection.innerHTML = "<div style='font-weight:600;color:#2d6a4f;margin-bottom:4px;'>\uD83D\uDCF7 " + _aiPhotos.length + " photos ready</div>" +
+        "<div style='font-size:0.8rem;color:#64748b;'>" + gpsCount + " have GPS (will use directly) \u00b7 " + noGpsCount + " need AI analysis</div>" +
+        "<div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Click to add more</div>";
     } else {
-      const list = _el("div", ct, { style: "max-height:280px;overflow-y:auto;" });
-      locations.forEach((loc, i) => {
-        const row = _el("div", list, { style: "display:flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:6px;background:#fafafa;" });
-        // Number badge
-        _el("div", row, { text: String(i + 1), style: "width:24px;height:24px;border-radius:50%;background:#2d6a4f;color:white;font-size:0.7rem;display:flex;align-items:center;justify-content:center;font-weight:600;flex-shrink:0;" });
-        // Title input
-        const ti = _el("input", row, { style: "flex:1;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.8rem;" });
-        ti.value = loc.title; ti.oninput = () => { loc.title = ti.value; };
-        // Coords
-        _el("span", row, { text: loc.lat.toFixed(4) + ", " + loc.lng.toFixed(4), style: "font-size:0.7rem;color:#94a3b8;white-space:nowrap;font-family:monospace;" });
-        // Photo count
-        if (loc.photos.length > 0) _el("span", row, { text: loc.photos.length + "\uD83D\uDCF7", style: "font-size:0.7rem;color:#64748b;" });
-        // AI Enrich button
-        const aiBtn = _el("button", row, { text: "\u2728", style: "background:none;border:1px solid #d1d5db;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:0.8rem;" });
-        aiBtn.title = "AI Enrich";
-        aiBtn.onclick = async () => {
-          aiBtn.textContent = "...";
-          try {
-            const info = await enrichLocationWithGemini(loc.lat, loc.lng, loc.title);
-            loc.description = info.description || "";
-            if (info.highlights) loc.description += "\n" + info.highlights.map(h => "- " + h).join("\n");
-            aiBtn.textContent = "\u2705";
-          } catch (e) { aiBtn.textContent = "\u274c"; console.warn(e); }
-        };
-        // Delete
-        const del = _el("button", row, { text: "\u00d7", style: "background:none;border:none;color:#ef4444;font-size:1.2rem;cursor:pointer;padding:0 4px;" });
-        del.onclick = () => { locations.splice(i, 1); render(); };
+      uploadSection.innerHTML = "<div style='font-size:1.5rem;margin-bottom:4px;'>\uD83D\uDCF7</div><div style='font-size:0.85rem;color:#94a3b8;'>Drop photos here or click to browse</div><div style='font-size:0.75rem;color:#94a3b8;margin-top:4px;'>Photos with GPS will be placed automatically</div>";
+    }
+    const fi = _el("input", ct); fi.type = "file"; fi.accept = "image/*"; fi.multiple = true; fi.style.display = "none";
+    fi.onchange = async (e) => { await importAiPhotos(e.target.files); render(); };
+    uploadSection.onclick = () => fi.click();
+    uploadSection.ondragover = (e) => { e.preventDefault(); uploadSection.style.borderColor = "#2d6a4f"; uploadSection.style.background = "#f0faf4"; };
+    uploadSection.ondragleave = () => { uploadSection.style.borderColor = "#d1d5db"; uploadSection.style.background = "#fafafa"; };
+    uploadSection.ondrop = async (e) => { e.preventDefault(); uploadSection.style.borderColor = "#d1d5db"; uploadSection.style.background = "#fafafa"; await importAiPhotos(e.dataTransfer.files); render(); };
+
+    // Analyze button + status
+    if (_aiPhotos.length > 0) {
+      const analyzeRow = _el("div", ct, { style: "display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;" });
+      const analyzeBtn = _el("button", analyzeRow, { text: _aiAnalyzing ? "Analyzing..." : "\uD83D\uDD0D Analyze & Create Locations", style: "padding:8px 18px;border:none;border-radius:8px;background:#2d6a4f;color:white;cursor:pointer;font-size:0.8rem;font-weight:500;" + (_aiAnalyzing ? "opacity:0.6;pointer-events:none;" : "") });
+      analyzeBtn.onclick = () => runAiAnalysis();
+
+      if (_aiStatus) {
+        _el("span", analyzeRow, { text: _aiStatus, style: "font-size:0.78rem;color:#64748b;" });
+      }
+    }
+
+    // Show results: map + location list (if locations exist from analysis)
+    if (locations.length > 0 && _aiPhotos.length > 0) {
+      _el("hr", ct, { style: "border:none;border-top:1px solid #e5e7eb;margin:12px 0;" });
+      _el("div", ct, { text: "\u2705 " + locations.length + " locations identified", style: "font-size:0.85rem;font-weight:600;color:#2d6a4f;margin-bottom:10px;" });
+
+      // Split: map + list
+      const split = _el("div", ct, { style: "display:flex;gap:12px;" });
+
+      // Map column
+      const mapCol = _el("div", split, { style: "flex:1;min-width:0;" });
+      const mapWrap = _el("div", mapCol);
+      initLeafletMap(mapWrap, { height: 300 });
+      refreshMapMarkers();
+
+      // List column
+      const listCol = _el("div", split, { style: "flex:1;min-width:0;max-height:300px;overflow-y:auto;" });
+      renderLocationList(listCol);
+    }
+  }
+
+  async function importAiPhotos(files) {
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) continue;
+      const id = "ai-ph-" + Date.now() + "-" + (++photoCounter);
+      const buffer = await file.arrayBuffer();
+      const exif = extractExifGps(buffer);
+      _aiPhotos.push({ id, file, buffer, exif, title: file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ") });
+    }
+  }
+
+  async function runAiAnalysis() {
+    if (_aiAnalyzing) return;
+    _aiAnalyzing = true;
+    _aiStatus = "Starting analysis...";
+    render();
+
+    const newLocs = new Map(); // key → {lat, lng, title, photos[], gpsSource}
+
+    for (let i = 0; i < _aiPhotos.length; i++) {
+      const ph = _aiPhotos[i];
+      _aiStatus = (i + 1) + "/" + _aiPhotos.length + ": " + ph.title;
+      // Update status without full re-render
+      const statusEl = document.querySelector(".hj-wizard-modal .hj-wizard-overlay span[style*='color:#64748b']");
+
+      if (ph.exif?.hasGps) {
+        // Group by rounded coords
+        const key = (Math.round(ph.exif.lat * 1000) / 1000) + "," + (Math.round(ph.exif.lng * 1000) / 1000);
+        if (!newLocs.has(key)) {
+          newLocs.set(key, { lat: ph.exif.lat, lng: ph.exif.lng, title: "GPS Location", photos: [], gpsSource: "exif" });
+        }
+        newLocs.get(key).photos.push({ id: ph.id, title: ph.title });
+      } else {
+        // Try AI vision analysis
+        try {
+          const compressed = await compressPhoto(ph.file);
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(compressed)));
+
+          // Build geographic constraint from GPX if available
+          let geoHint = "";
+          if (gpxData && gpxData.bounds) {
+            const b = gpxData.bounds;
+            geoHint = "\nThe photo was taken somewhere in this geographic area: lat " + b.south.toFixed(3) + "-" + b.north.toFixed(3) + ", lng " + b.west.toFixed(3) + "-" + b.east.toFixed(3);
+          }
+
+          const result = await callAI("vision", {
+            systemPrompt: "You are GeoLens, a geographic location identifier. Analyze the photo and identify the exact location.",
+            parts: [
+              { inlineData: { mimeType: "image/jpeg", data: base64 } },
+              { text: "Identify this photo's location. " + geoHint + "\n\nReturn ONLY valid JSON: {\"lat\": number, \"lng\": number, \"locationName\": \"string\", \"confidence\": \"high|medium|low\"}" }
+            ],
+            temperature: 0.3
+          });
+
+          const text = result.text || "";
+          const match = text.match(/\{[\s\S]*\}/);
+          if (match) {
+            const parsed = JSON.parse(match[0]);
+            if (parsed.lat && parsed.lng) {
+              const key = parsed.locationName || (parsed.lat.toFixed(3) + "," + parsed.lng.toFixed(3));
+              if (!newLocs.has(key)) {
+                newLocs.set(key, { lat: parsed.lat, lng: parsed.lng, title: parsed.locationName || "AI Location", photos: [], gpsSource: "ai-" + (parsed.confidence || "medium") });
+              }
+              newLocs.get(key).photos.push({ id: ph.id, title: ph.title });
+            }
+          }
+        } catch (e) {
+          console.warn("AI analysis failed for", ph.title, e);
+        }
+      }
+    }
+
+    // Convert to locations array
+    locations = [];
+    for (const [key, data] of newLocs) {
+      locCounter++;
+      // Save photos to IndexedDB
+      const photoEntries = [];
+      for (const phRef of data.photos) {
+        const aiPh = _aiPhotos.find(p => p.id === phRef.id);
+        if (aiPh) {
+          const compressed = await compressPhoto(aiPh.file);
+          const newId = "photo-" + Date.now() + "-" + (++photoCounter);
+          await savePhotoToIDB(newId, compressed);
+          photoEntries.push({ id: newId, title: phRef.title });
+        }
+      }
+      locations.push({
+        id: "loc-" + locCounter, title: data.title,
+        lat: data.lat, lng: data.lng,
+        photos: photoEntries, gpsSource: data.gpsSource, description: ""
       });
     }
+
+    // Try to name EXIF locations via AI
+    for (const loc of locations) {
+      if (loc.gpsSource === "exif" && loc.title === "GPS Location") {
+        try {
+          const result = await callAI("text", {
+            userPrompt: "What is the name of the place at coordinates " + loc.lat.toFixed(5) + ", " + loc.lng.toFixed(5) + "? Return ONLY the place name, nothing else.",
+            temperature: 0.3
+          });
+          const name = (result.text || "").trim().replace(/["']/g, "");
+          if (name && name.length < 80) loc.title = name;
+        } catch (e) {}
+      }
+    }
+
+    _aiAnalyzing = false;
+    _aiStatus = "\u2705 Done! " + locations.length + " locations found.";
+    render();
+  }
+
+  // ── Shared location list renderer ──
+  function renderLocationList(ct) {
+    if (locations.length === 0) {
+      _el("div", ct, { text: "No locations yet.", style: "text-align:center;padding:16px;color:#94a3b8;font-size:0.85rem;" });
+      return;
+    }
+    const list = _el("div", ct, { style: "max-height:280px;overflow-y:auto;" });
+    const badgeColors = { exif: "#2563eb", "ai-high": "#10b981", "ai-medium": "#f59e0b", "ai-low": "#ef4444", "ai-unknown": "#6b7280", manual: "#2d6a4f" };
+    locations.forEach((loc, i) => {
+      const row = _el("div", list, { style: "display:flex;gap:6px;align-items:center;padding:7px 10px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:5px;background:#fafafa;" });
+      // Badge
+      const badgeColor = badgeColors[loc.gpsSource] || "#2d6a4f";
+      _el("div", row, { text: String(i + 1), style: "width:22px;height:22px;border-radius:50%;background:" + badgeColor + ";color:white;font-size:0.65rem;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;" });
+      // GPS source badge
+      if (loc.gpsSource && loc.gpsSource !== "manual") {
+        const srcLabel = loc.gpsSource === "exif" ? "GPS" : loc.gpsSource.replace("ai-", "AI:");
+        _el("span", row, { text: srcLabel, style: "font-size:0.6rem;font-weight:600;color:white;background:" + badgeColor + ";padding:1px 5px;border-radius:3px;flex-shrink:0;" });
+      }
+      // Title
+      const ti = _el("input", row, { style: "flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.78rem;min-width:0;" });
+      ti.value = loc.title; ti.oninput = () => { loc.title = ti.value; };
+      // Coords
+      _el("span", row, { text: loc.lat.toFixed(3) + "," + loc.lng.toFixed(3), style: "font-size:0.65rem;color:#94a3b8;white-space:nowrap;font-family:monospace;" });
+      // Photo count
+      if (loc.photos.length > 0) _el("span", row, { text: loc.photos.length + "\uD83D\uDCF7", style: "font-size:0.68rem;color:#64748b;" });
+      // AI Enrich
+      const enrBtn = _el("button", row, { text: "\u2728", style: "background:none;border:1px solid #d1d5db;border-radius:5px;padding:2px 6px;cursor:pointer;font-size:0.75rem;" });
+      enrBtn.title = "AI Enrich"; enrBtn.onclick = async () => {
+        enrBtn.textContent = "...";
+        try { const info = await enrichLocationWithGemini(loc.lat, loc.lng, loc.title); loc.description = (info.description || "") + (info.highlights ? "\n" + info.highlights.map(h => "- " + h).join("\n") : ""); enrBtn.textContent = "\u2705"; } catch { enrBtn.textContent = "\u274c"; }
+      };
+      // Delete
+      const del = _el("button", row, { text: "\u00d7", style: "background:none;border:none;color:#ef4444;font-size:1.1rem;cursor:pointer;padding:0 3px;" });
+      del.onclick = () => { locations.splice(i, 1); render(); };
+    });
   }
 
   function autoGenLocations() {
