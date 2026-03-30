@@ -302,7 +302,10 @@ module.exports = async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const { capability, provider, model, userApiKey, payload } = req.body;
+    let { capability, provider, model, userApiKey, payload } = req.body;
+    // Default models per provider
+    const DEFAULT_MODELS = { gemini: "gemini-2.0-flash", claude: "claude-sonnet-4-6", qwen: "qwen-plus", openai: "gpt-4o-mini", kimi: "moonshot-v1-32k", deepseek: "deepseek-chat", minimax: "abab7" };
+    if (!model) model = DEFAULT_MODELS[provider] || "gemini-2.0-flash";
 
     if (!capability || !provider) {
       return res.status(400).json({ error: "Missing capability or provider" });

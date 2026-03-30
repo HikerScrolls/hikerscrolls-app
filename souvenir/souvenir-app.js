@@ -6,7 +6,7 @@ async function callAI(capability, payload, overrideProvider, overrideModel) {
   const resp = await fetch("/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ capability, provider: overrideProvider || "gemini", model: overrideModel || undefined, payload })
+    body: JSON.stringify({ capability, provider: overrideProvider || "gemini", model: overrideModel || "gemini-2.0-flash", payload })
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: "API error " + resp.status }));
