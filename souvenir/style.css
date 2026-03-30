@@ -33,6 +33,48 @@ a { color: inherit; text-decoration: none; }
 .svn-nav-links a { font-size: 13px; color: var(--text-muted); transition: color .2s; font-weight: 500; }
 .svn-nav-links a:hover { color: var(--brand); }
 
+/* Settings button */
+.svn-settings-btn {
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 8px; cursor: pointer; color: var(--text-muted); transition: all .2s;
+  display: flex; align-items: center;
+}
+.svn-settings-btn:hover { border-color: var(--brand-light); color: var(--brand); }
+
+/* Settings overlay */
+.svn-settings-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+}
+.svn-settings-modal {
+  background: white; border-radius: 16px; padding: 28px 32px; max-width: 520px; width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25); max-height: 85vh; overflow-y: auto;
+}
+.svn-settings-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
+.svn-settings-desc { font-size: 0.75rem; color: var(--text-faint); margin-bottom: 20px; }
+.svn-settings-section {
+  margin-bottom: 14px; padding: 12px; background: #f9fafb;
+  border-radius: 10px; border: 1px solid #e5e7eb;
+}
+.svn-settings-section-label { font-size: 0.8rem; font-weight: 600; color: #333; margin-bottom: 2px; }
+.svn-settings-section-hint { font-size: 0.7rem; color: #999; margin-bottom: 8px; }
+.svn-settings-row { display: flex; gap: 8px; }
+.svn-settings-row select {
+  flex: 1; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8rem;
+}
+.svn-settings-keys-title { font-size: 0.8rem; font-weight: 600; color: #333; margin-bottom: 4px; }
+.svn-settings-keys-hint { font-size: 0.7rem; color: #888; margin-bottom: 12px; }
+.svn-settings-key-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.svn-settings-key-label { width: 70px; font-size: 0.75rem; color: #555; flex-shrink: 0; }
+.svn-settings-key-input {
+  flex: 1; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8rem;
+}
+.svn-settings-save {
+  width: 100%; padding: 10px; background: var(--brand); color: white; border: none;
+  border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-weight: 500; margin-top: 16px;
+}
+.svn-settings-save:hover { background: var(--brand-dark); }
+
 /* ── Main ── */
 .svn-main { max-width: 860px; margin: 0 auto; padding: 0 24px; flex: 1; width: 100%; }
 

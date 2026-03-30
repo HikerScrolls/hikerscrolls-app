@@ -1,18 +1,171 @@
 // Souvenir Studio — Standalone App
 // Uses SouvenirCore from souvenir-core.js + /api/ai proxy
 
-// ── callAI (same as demo/app.js) ──
+// ── Settings ──
+const SVN_SETTINGS_KEY = "hikerscrolls_svn_settings";
+let _svnProviderMeta = null;
+
+function getSvnSettings() {
+  try { return JSON.parse(localStorage.getItem(SVN_SETTINGS_KEY) || "{}"); } catch { return {}; }
+}
+function saveSvnSettings(s) { localStorage.setItem(SVN_SETTINGS_KEY, JSON.stringify(s)); }
+
+// ── callAI (uses saved settings for provider/model/key) ──
 async function callAI(capability, payload, overrideProvider, overrideModel) {
+  const settings = getSvnSettings();
+  const routing = settings.aiRouting || {};
+  const provider = overrideProvider || routing[capability]?.provider || "gemini";
+  const model = overrideModel || routing[capability]?.model || undefined; // server has defaults
+  const userApiKey = settings.apiKeys?.[provider] || undefined;
   const resp = await fetch("/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ capability, provider: overrideProvider || "gemini", model: overrideModel || "gemini-2.0-flash", payload })
+    body: JSON.stringify({ capability, provider, model, userApiKey, payload })
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: "API error " + resp.status }));
     throw new Error(err.error || "API error " + resp.status);
   }
   return (await resp.json()).result;
+}
+
+async function fetchProviderMeta() {
+  if (_svnProviderMeta) return _svnProviderMeta;
+  try { const r = await fetch("/api/ai/providers"); if (r.ok) _svnProviderMeta = await r.json(); } catch {}
+  return _svnProviderMeta;
+}
+
+async function showSettingsModal() {
+  const existing = document.querySelector(".svn-settings-overlay");
+  if (existing) existing.remove();
+
+  const meta = await fetchProviderMeta();
+  const providers = meta?.providers || {};
+  const serverAvailable = meta?.serverAvailable || {};
+  const settings = getSvnSettings();
+  const routing = settings.aiRouting || {};
+  const apiKeys = settings.apiKeys || {};
+
+  const overlay = document.createElement("div");
+  overlay.className = "svn-settings-overlay";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+  const modal = document.createElement("div");
+  modal.className = "svn-settings-modal";
+
+  const title = document.createElement("div");
+  title.className = "svn-settings-title";
+  title.textContent = "AI Settings";
+  modal.appendChild(title);
+
+  const desc = document.createElement("div");
+  desc.className = "svn-settings-desc";
+  desc.textContent = "Choose AI providers and models for each capability. Leave API keys blank to use server defaults.";
+  modal.appendChild(desc);
+
+  const capabilities = [
+    { id: "text", label: "Text Analysis", desc: "Trip context, cultural research, design system" },
+    { id: "vision", label: "Vision Analysis", desc: "Photo scoring, element extraction" },
+    { id: "image", label: "Image Generation", desc: "Souvenir design rendering" }
+  ];
+
+  const selects = {};
+  for (const cap of capabilities) {
+    const section = document.createElement("div");
+    section.className = "svn-settings-section";
+    const lbl = document.createElement("div");
+    lbl.className = "svn-settings-section-label"; lbl.textContent = cap.label;
+    section.appendChild(lbl);
+    const hint = document.createElement("div");
+    hint.className = "svn-settings-section-hint"; hint.textContent = cap.desc;
+    section.appendChild(hint);
+
+    const row = document.createElement("div");
+    row.className = "svn-settings-row";
+    const provSel = document.createElement("select");
+    const currentProv = routing[cap.id]?.provider || "gemini";
+    for (const [id, p] of Object.entries(providers)) {
+      if (!p.capabilities.includes(cap.id)) continue;
+      const opt = document.createElement("option");
+      opt.value = id; opt.textContent = p.name + (serverAvailable[id] ? " \u2713" : "");
+      if (id === currentProv) opt.selected = true;
+      provSel.appendChild(opt);
+    }
+    row.appendChild(provSel);
+
+    const modelSel = document.createElement("select");
+    const fillModels = (provId) => {
+      modelSel.innerHTML = "";
+      const models = providers[provId]?.models?.[cap.id] || [];
+      const currentModel = routing[cap.id]?.model;
+      for (const m of models) {
+        const opt = document.createElement("option");
+        opt.value = m; opt.textContent = m;
+        if (m === currentModel) opt.selected = true;
+        modelSel.appendChild(opt);
+      }
+    };
+    fillModels(currentProv);
+    provSel.addEventListener("change", () => fillModels(provSel.value));
+    row.appendChild(modelSel);
+
+    section.appendChild(row);
+    modal.appendChild(section);
+    selects[cap.id] = { prov: provSel, model: modelSel };
+  }
+
+  // Divider
+  modal.appendChild(Object.assign(document.createElement("hr"), { style: "border:none;border-top:1px solid #eee;margin:16px 0;" }));
+
+  // API Keys
+  const keysTitle = document.createElement("div");
+  keysTitle.className = "svn-settings-keys-title"; keysTitle.textContent = "API Keys (Optional)";
+  modal.appendChild(keysTitle);
+  const keysHint = document.createElement("div");
+  keysHint.className = "svn-settings-keys-hint"; keysHint.textContent = "Leave blank to use server defaults (rate limited).";
+  modal.appendChild(keysHint);
+
+  const keyInputs = {};
+  const keyProviders = [
+    { id: "gemini", name: "Gemini", ph: "AIza..." },
+    { id: "claude", name: "Claude", ph: "sk-ant-..." },
+    { id: "openai", name: "OpenAI", ph: "sk-..." },
+    { id: "qwen", name: "Qwen", ph: "sk-..." },
+  ];
+  for (const kp of keyProviders) {
+    const row = document.createElement("div");
+    row.className = "svn-settings-key-row";
+    const label = document.createElement("div");
+    label.className = "svn-settings-key-label"; label.textContent = kp.name;
+    row.appendChild(label);
+    const input = document.createElement("input");
+    input.className = "svn-settings-key-input";
+    input.type = "password"; input.value = apiKeys[kp.id] || ""; input.placeholder = kp.ph;
+    row.appendChild(input);
+    keyInputs[kp.id] = input;
+    modal.appendChild(row);
+  }
+
+  // Save
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "svn-settings-save"; saveBtn.textContent = "Save Settings";
+  saveBtn.onclick = () => {
+    const newRouting = {};
+    for (const cap of capabilities) {
+      newRouting[cap.id] = { provider: selects[cap.id].prov.value, model: selects[cap.id].model.value };
+    }
+    const newKeys = {};
+    for (const kp of keyProviders) {
+      const v = keyInputs[kp.id].value.trim();
+      if (v) newKeys[kp.id] = v;
+    }
+    saveSvnSettings({ aiRouting: newRouting, apiKeys: newKeys });
+    overlay.remove();
+  };
+  modal.appendChild(saveBtn);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
 }
 
 // ── GPX Parser (inline) ──
@@ -79,6 +232,8 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGenerate();
   setupDownloadAll();
   setupNewBtn();
+  const settingsBtn = document.getElementById("settings-btn");
+  if (settingsBtn) settingsBtn.addEventListener("click", showSettingsModal);
 });
 
 // ── Step Indicator ──
