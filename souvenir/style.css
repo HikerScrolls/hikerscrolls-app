@@ -1,0 +1,129 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --brand: #2d6a4f;
+  --brand-light: #52b788;
+  --brand-dark: #1b4332;
+  --text: #1c1917;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --bg: #fafaf8;
+  --bg-warm: #f5f0e8;
+  --bg-card: #ffffff;
+  --border: #e2e8f0;
+  --radius: 12px;
+}
+
+body { font-family: 'Segoe UI', system-ui, sans-serif; color: var(--text); background: var(--bg); line-height: 1.6; min-height: 100vh; display: flex; flex-direction: column; }
+a { color: inherit; text-decoration: none; }
+
+/* Nav */
+.svn-nav { padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: rgba(250,250,248,.95); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 50; }
+.svn-nav-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--brand-dark); }
+.svn-nav-links { display: flex; gap: 20px; }
+.svn-nav-links a { font-size: 13px; color: var(--text-muted); transition: color .2s; }
+.svn-nav-links a:hover { color: var(--brand); }
+
+/* Main */
+.svn-main { max-width: 800px; margin: 0 auto; padding: 0 24px; flex: 1; width: 100%; }
+
+/* Hero */
+.svn-hero { text-align: center; padding: 48px 0 32px; }
+.svn-title { font-size: clamp(28px, 5vw, 40px); font-weight: 800; letter-spacing: -.02em; color: var(--brand-dark); }
+.svn-subtitle { font-size: 16px; color: var(--text-muted); max-width: 520px; margin: 12px auto 0; line-height: 1.6; }
+
+/* Sections */
+.svn-section { margin-bottom: 40px; }
+.svn-section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+
+/* Upload Zone */
+.svn-upload-zone {
+  border: 2px dashed var(--border); border-radius: var(--radius); padding: 40px 24px;
+  text-align: center; cursor: pointer; transition: all .2s; background: var(--bg-card);
+}
+.svn-upload-zone:hover, .svn-upload-zone.drag-over { border-color: var(--brand); background: #f0faf4; }
+.svn-upload-text { font-size: 15px; color: var(--text-muted); margin-top: 12px; }
+.svn-upload-hint { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+
+/* Photo Preview */
+.svn-photo-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.svn-photo-thumb {
+  width: 72px; height: 72px; border-radius: 8px; object-fit: cover;
+  border: 2px solid var(--border); transition: border-color .2s;
+}
+.svn-photo-thumb-wrap { position: relative; }
+.svn-photo-remove {
+  position: absolute; top: -4px; right: -4px; width: 20px; height: 20px;
+  border-radius: 50%; background: #ef4444; color: white; border: none;
+  font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .2s;
+}
+.svn-photo-thumb-wrap:hover .svn-photo-remove { opacity: 1; }
+
+/* Product Grid */
+.svn-product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.svn-product-card {
+  border: 2px solid var(--border); border-radius: var(--radius); padding: 16px;
+  text-align: center; cursor: pointer; transition: all .2s; background: var(--bg-card);
+  user-select: none;
+}
+.svn-product-card.selected { border-color: var(--brand); background: #f0faf4; }
+.svn-product-card:hover { border-color: var(--brand-light); }
+.svn-product-icon { font-size: 28px; margin-bottom: 6px; }
+.svn-product-name { font-size: 14px; font-weight: 600; }
+.svn-product-dims { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+
+/* Variant + Generate */
+.svn-variant-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; font-size: 14px; color: var(--text-muted); }
+.svn-variant-row select { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+.svn-generate-btn {
+  margin-top: 20px; width: 100%; padding: 14px; border: none; border-radius: var(--radius);
+  background: var(--brand); color: white; font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: background .2s;
+}
+.svn-generate-btn:hover { background: var(--brand-dark); }
+.svn-generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Progress */
+.svn-progress-bar { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; margin-bottom: 12px; }
+.svn-progress-fill { height: 100%; background: var(--brand); border-radius: 4px; transition: width .3s; width: 0%; }
+.svn-progress-log { font-size: 13px; color: var(--text-muted); max-height: 200px; overflow-y: auto; font-family: monospace; }
+.svn-progress-log div { padding: 2px 0; border-bottom: 1px solid #f1f5f9; }
+
+/* Results Grid */
+.svn-results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.svn-result-card {
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  background: var(--bg-card); transition: box-shadow .2s;
+}
+.svn-result-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.svn-result-img { width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #f8f8f8; display: block; }
+.svn-result-info { padding: 10px 12px; }
+.svn-result-type { font-size: 12px; font-weight: 600; color: var(--brand); text-transform: uppercase; letter-spacing: .05em; }
+.svn-result-strategy { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+.svn-result-download {
+  display: block; text-align: center; padding: 8px; font-size: 13px; font-weight: 500;
+  color: var(--brand); border-top: 1px solid var(--border); cursor: pointer; transition: background .2s;
+}
+.svn-result-download:hover { background: #f0faf4; }
+
+/* Download All */
+.svn-results-actions { margin-top: 20px; text-align: center; }
+.svn-download-all-btn {
+  padding: 12px 32px; border: 2px solid var(--brand); border-radius: var(--radius);
+  background: white; color: var(--brand); font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all .2s;
+}
+.svn-download-all-btn:hover { background: var(--brand); color: white; }
+
+/* Footer */
+.svn-footer { text-align: center; padding: 24px; font-size: 13px; color: var(--text-faint); border-top: 1px solid var(--border); margin-top: 40px; }
+.svn-footer a { color: var(--brand); }
+
+@media (max-width: 600px) {
+  .svn-main { padding: 0 16px; }
+  .svn-hero { padding: 32px 0 24px; }
+  .svn-product-grid { grid-template-columns: repeat(2, 1fr); }
+  .svn-results-grid { grid-template-columns: 1fr; }
+  .svn-nav-links { display: none; }
+}

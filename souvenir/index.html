@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Souvenir Studio — HikerScrolls</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="svn-nav">
+    <a href="../" class="svn-nav-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" width="24" height="24">
+        <rect x="20" y="10" width="60" height="78" rx="5" stroke-width="5"/>
+        <line x1="20" y1="26" x2="80" y2="26" stroke-width="3.5"/>
+        <path d="M28 74 L46 34 L54 46 L68 28 L78 48" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      HikerScrolls
+    </a>
+    <div class="svn-nav-links">
+      <a href="../demo/">Journal Demo</a>
+      <a href="../#get-started">Install Plugin</a>
+    </div>
+  </nav>
+
+  <main class="svn-main">
+    <!-- Hero -->
+    <section class="svn-hero">
+      <h1 class="svn-title">Souvenir Studio</h1>
+      <p class="svn-subtitle">Turn your travel photos into beautiful postcards, magnets, stickers, pins, and stamps — powered by AI.</p>
+    </section>
+
+    <!-- Upload -->
+    <section class="svn-section" id="upload-section">
+      <div class="svn-upload-zone" id="upload-zone">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/>
+          <circle cx="12" cy="13" r="3"/>
+        </svg>
+        <div class="svn-upload-text">Drop your travel photos here or click to browse</div>
+        <div class="svn-upload-hint">JPG, PNG, WebP — up to 20 photos</div>
+        <input type="file" id="photo-input" accept="image/*" multiple hidden>
+      </div>
+      <div id="photo-preview" class="svn-photo-preview"></div>
+    </section>
+
+    <!-- Product Selection -->
+    <section class="svn-section" id="product-section" style="display:none;">
+      <h2 class="svn-section-title">Select Products</h2>
+      <div class="svn-product-grid" id="product-grid"></div>
+      <div class="svn-variant-row">
+        <label>Variants per product:</label>
+        <select id="variant-count">
+          <option value="1">1</option>
+          <option value="2" selected>2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </div>
+      <button class="svn-generate-btn" id="generate-btn">Generate Souvenirs</button>
+    </section>
+
+    <!-- Progress -->
+    <section class="svn-section" id="progress-section" style="display:none;">
+      <h2 class="svn-section-title">Generating...</h2>
+      <div class="svn-progress-bar"><div class="svn-progress-fill" id="progress-fill"></div></div>
+      <div class="svn-progress-log" id="progress-log"></div>
+    </section>
+
+    <!-- Results -->
+    <section class="svn-section" id="results-section" style="display:none;">
+      <h2 class="svn-section-title">Your Souvenirs</h2>
+      <div class="svn-results-grid" id="results-grid"></div>
+      <div class="svn-results-actions">
+        <button class="svn-download-all-btn" id="download-all-btn">Download All</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="svn-footer">
+    <span>Souvenir Studio by <a href="../">HikerScrolls</a></span>
+  </footer>
+
+  <script src="souvenir-core.js"></script>
+  <script src="souvenir-app.js"></script>
+</body>
+</html>
