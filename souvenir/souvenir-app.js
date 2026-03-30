@@ -262,12 +262,17 @@ function setupUpload() {
 }
 
 async function handleFiles(fileList) {
-  for (const file of fileList) {
-    if (!file.type.startsWith("image/") || photos.length >= 20) continue;
-    const id = "ph-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
-    const blobUrl = URL.createObjectURL(file);
-    const base64 = await compressToBase64(file, 768);
-    photos.push({ id, file, base64, mimeType: "image/jpeg", blobUrl, title: file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ") });
+  const files = Array.from(fileList).filter(f => f.type.startsWith("image/"));
+  for (let i = 0; i < files.length && photos.length < 20; i++) {
+    const file = files[i];
+    try {
+      const id = "ph-" + Date.now() + "-" + i + "-" + Math.random().toString(36).slice(2, 6);
+      const blobUrl = URL.createObjectURL(file);
+      const base64 = await compressToBase64(file, 768);
+      photos.push({ id, file, base64, mimeType: "image/jpeg", blobUrl, title: file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ") });
+    } catch (e) {
+      console.warn("Failed to process photo:", file.name, e);
+    }
   }
   renderPhotoPreview();
   if (photos.length > 0) {
@@ -277,20 +282,23 @@ async function handleFiles(fileList) {
 }
 
 function compressToBase64(file, maxSize) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      URL.revokeObjectURL(url);
-      let w = img.width, h = img.height;
-      if (w > maxSize || h > maxSize) {
-        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; } else { w = Math.round(w * maxSize / h); h = maxSize; }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL("image/jpeg", 0.85).split(",")[1]);
+      try {
+        URL.revokeObjectURL(url);
+        let w = img.width, h = img.height;
+        if (w > maxSize || h > maxSize) {
+          if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; } else { w = Math.round(w * maxSize / h); h = maxSize; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.85).split(",")[1]);
+      } catch (e) { reject(e); }
     };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Failed to load image")); };
     img.src = url;
   });
 }
