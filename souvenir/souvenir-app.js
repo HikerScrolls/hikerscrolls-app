@@ -15,8 +15,41 @@ async function callAI(capability, payload, overrideProvider, overrideModel) {
   return (await resp.json()).result;
 }
 
+// ── GPX Parser (inline) ──
+function _toRad(d) { return d * Math.PI / 180; }
+function _haversineKm(lat1, lng1, lat2, lng2) {
+  const dLat = _toRad(lat2 - lat1), dLng = _toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(_toRad(lat1)) * Math.cos(_toRad(lat2)) * Math.sin(dLng/2)**2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function parseGpx(xmlString) {
+  const doc = new DOMParser().parseFromString(xmlString, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("Invalid GPX file");
+  const name = doc.querySelector("metadata > name")?.textContent?.trim() || doc.querySelector("trk > name")?.textContent?.trim() || "Unnamed Trail";
+  const trackPoints = [];
+  doc.querySelectorAll("trkpt").forEach(el => {
+    const lat = parseFloat(el.getAttribute("lat")||"0"), lng = parseFloat(el.getAttribute("lon")||"0");
+    if (lat || lng) trackPoints.push({ lat, lng, ele: parseFloat(el.querySelector("ele")?.textContent) || undefined });
+  });
+  if (!trackPoints.length) doc.querySelectorAll("rtept").forEach(el => {
+    const lat = parseFloat(el.getAttribute("lat")||"0"), lng = parseFloat(el.getAttribute("lon")||"0");
+    if (lat || lng) trackPoints.push({ lat, lng, ele: parseFloat(el.querySelector("ele")?.textContent) || undefined });
+  });
+  if (!trackPoints.length) throw new Error("GPX file contains no track data");
+  let totalDistanceKm = 0, elevationGainM = 0, elevationLossM = 0;
+  for (let i = 1; i < trackPoints.length; i++) {
+    totalDistanceKm += _haversineKm(trackPoints[i-1].lat, trackPoints[i-1].lng, trackPoints[i].lat, trackPoints[i].lng);
+    if (trackPoints[i-1].ele != null && trackPoints[i].ele != null) {
+      const diff = trackPoints[i].ele - trackPoints[i-1].ele;
+      if (diff > 0) elevationGainM += diff; else elevationLossM += Math.abs(diff);
+    }
+  }
+  return { name, trackPoints, totalDistanceKm: Math.round(totalDistanceKm * 100) / 100, elevationGainM: Math.round(elevationGainM), elevationLossM: Math.round(elevationLossM) };
+}
+
 // ── State ──
 let photos = [];
+let gpxData = null;
 let selectedProducts = new Set(["postcard", "magnet", "sticker"]);
 let variantsCount = 2;
 let results = [];
@@ -40,6 +73,7 @@ const CHECK_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" s
 // ── Init ──
 document.addEventListener("DOMContentLoaded", () => {
   setupUpload();
+  setupGpxUpload();
   renderProductGrid();
   setupVariantSelector();
   setupGenerate();
@@ -123,6 +157,34 @@ function renderPhotoPreview() {
   });
 }
 
+// ── GPX Upload ──
+function setupGpxUpload() {
+  const drop = document.getElementById("gpx-drop");
+  const input = document.getElementById("gpx-input");
+  const status = document.getElementById("gpx-status");
+  if (!drop) return;
+
+  drop.addEventListener("click", () => input.click());
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.style.borderColor = "#2d6a4f"; });
+  drop.addEventListener("dragleave", () => { if (!gpxData) drop.style.borderColor = ""; });
+  drop.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer.files[0]) handleGpxFile(e.dataTransfer.files[0]); });
+  input.addEventListener("change", (e) => { if (e.target.files[0]) handleGpxFile(e.target.files[0]); });
+}
+
+async function handleGpxFile(file) {
+  const drop = document.getElementById("gpx-drop");
+  const status = document.getElementById("gpx-status");
+  try {
+    gpxData = parseGpx(await file.text());
+    drop.classList.add("has-gpx");
+    status.textContent = gpxData.name + " — " + gpxData.trackPoints.length + " points, " + gpxData.totalDistanceKm + " km, \u2191" + gpxData.elevationGainM + "m";
+  } catch (e) {
+    gpxData = null;
+    drop.classList.remove("has-gpx");
+    status.textContent = "Failed: " + e.message;
+  }
+}
+
 // ── Product Selection ──
 function renderProductGrid() {
   const grid = document.getElementById("product-grid");
@@ -183,9 +245,10 @@ function setupGenerate() {
     };
 
     const tripData = {
-      name: "My Travel Photos",
-      waypoints: [{ title: "Travel Location", lat: 0, lng: 0, photos: photos.map(p => ({ title: p.title })) }],
-      gpxTrack: [], stats: {}
+      name: gpxData ? gpxData.name : "My Travel Photos",
+      waypoints: [{ title: "Travel Location", lat: gpxData ? gpxData.trackPoints[0].lat : 0, lng: gpxData ? gpxData.trackPoints[0].lng : 0, photos: photos.map(p => ({ title: p.title })) }],
+      gpxTrack: gpxData ? gpxData.trackPoints : [],
+      stats: gpxData ? { distanceKm: gpxData.totalDistanceKm, elevationGainM: gpxData.elevationGainM, elevationLossM: gpxData.elevationLossM } : {}
     };
     const photoBase64Array = photos.map(p => ({ base64: p.base64, mimeType: p.mimeType, location: "Travel", title: p.title }));
 
@@ -247,8 +310,12 @@ function setupNewBtn() {
   const btn = document.getElementById("new-btn");
   if (btn) btn.addEventListener("click", () => {
     photos.forEach(p => URL.revokeObjectURL(p.blobUrl));
-    photos = []; results = [];
+    photos = []; results = []; gpxData = null;
     selectedProducts = new Set(["postcard", "magnet", "sticker"]);
+    const gpxDrop = document.getElementById("gpx-drop");
+    const gpxStatus = document.getElementById("gpx-status");
+    if (gpxDrop) gpxDrop.classList.remove("has-gpx");
+    if (gpxStatus) gpxStatus.textContent = "Add a GPX file for route-aware designs (distance, elevation, trail shape)";
     document.getElementById("photo-preview").innerHTML = "";
     document.getElementById("product-section").style.display = "none";
     document.getElementById("progress-section").style.display = "none";
