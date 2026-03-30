@@ -303,9 +303,17 @@ module.exports = async function handler(req, res) {
 
   try {
     let { capability, provider, model, userApiKey, payload } = req.body;
-    // Default models per provider
-    const DEFAULT_MODELS = { gemini: "gemini-2.0-flash", claude: "claude-sonnet-4-6", qwen: "qwen-plus", openai: "gpt-4o-mini", kimi: "moonshot-v1-32k", deepseek: "deepseek-chat", minimax: "abab7" };
-    if (!model) model = DEFAULT_MODELS[provider] || "gemini-2.0-flash";
+    // Default models per provider + capability
+    const DEFAULT_MODELS = {
+      gemini: { text: "gemini-2.0-flash", vision: "gemini-2.0-flash", image: "gemini-3.1-flash-image-preview" },
+      claude: { text: "claude-sonnet-4-6" },
+      qwen: { text: "qwen-plus", vision: "qwen3.5-flash", image: "qwen-image-2.0-pro" },
+      openai: { text: "gpt-4o-mini", vision: "gpt-4o-mini", image: "dall-e-3" },
+      kimi: { text: "moonshot-v1-32k" },
+      deepseek: { text: "deepseek-chat" },
+      minimax: { text: "abab7" }
+    };
+    if (!model) model = DEFAULT_MODELS[provider]?.[capability] || DEFAULT_MODELS[provider]?.text || "gemini-2.0-flash";
 
     if (!capability || !provider) {
       return res.status(400).json({ error: "Missing capability or provider" });
