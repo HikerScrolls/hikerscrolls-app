@@ -24,20 +24,71 @@
   </nav>
 
   <main class="svn-main">
-    <!-- Hero -->
+    <!-- Hero with gradient background -->
     <section class="svn-hero">
+      <div class="svn-hero-badge">AI-Powered Travel Souvenirs</div>
       <h1 class="svn-title">Souvenir Studio</h1>
-      <p class="svn-subtitle">Turn your travel photos into beautiful postcards, magnets, stickers, pins, and stamps — powered by AI.</p>
+      <p class="svn-subtitle">Upload your travel photos and let AI craft unique postcards, fridge magnets, stickers, enamel pins, and commemorative stamps.</p>
+
+      <!-- Product showcase strip -->
+      <div class="svn-showcase">
+        <div class="svn-showcase-item">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          <span>Postcards</span>
+        </div>
+        <div class="svn-showcase-dot"></div>
+        <div class="svn-showcase-item">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2v6a6 6 0 0 0 12 0V2"/><rect x="3" y="2" width="6" height="4" rx="1"/><rect x="15" y="2" width="6" height="4" rx="1"/></svg>
+          <span>Magnets</span>
+        </div>
+        <div class="svn-showcase-dot"></div>
+        <div class="svn-showcase-item">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>
+          <span>Stickers</span>
+        </div>
+        <div class="svn-showcase-dot"></div>
+        <div class="svn-showcase-item">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>Pins</span>
+        </div>
+        <div class="svn-showcase-dot"></div>
+        <div class="svn-showcase-item">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+          <span>Stamps</span>
+        </div>
+      </div>
     </section>
+
+    <!-- Steps indicator -->
+    <div class="svn-steps">
+      <div class="svn-step active" id="step-ind-1">
+        <div class="svn-step-num">1</div>
+        <div class="svn-step-label">Upload Photos</div>
+      </div>
+      <div class="svn-step-line"></div>
+      <div class="svn-step" id="step-ind-2">
+        <div class="svn-step-num">2</div>
+        <div class="svn-step-label">Choose Products</div>
+      </div>
+      <div class="svn-step-line"></div>
+      <div class="svn-step" id="step-ind-3">
+        <div class="svn-step-num">3</div>
+        <div class="svn-step-label">Download</div>
+      </div>
+    </div>
 
     <!-- Upload -->
     <section class="svn-section" id="upload-section">
       <div class="svn-upload-zone" id="upload-zone">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/>
-          <circle cx="12" cy="13" r="3"/>
-        </svg>
-        <div class="svn-upload-text">Drop your travel photos here or click to browse</div>
+        <div class="svn-upload-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/>
+            <circle cx="12" cy="13" r="3"/>
+          </svg>
+        </div>
+        <div class="svn-upload-text">Drop your travel photos here</div>
+        <div class="svn-upload-or">or</div>
+        <button class="svn-upload-btn">Browse Files</button>
         <div class="svn-upload-hint">JPG, PNG, WebP — up to 20 photos</div>
         <input type="file" id="photo-input" accept="image/*" multiple hidden>
       </div>
@@ -46,40 +97,60 @@
 
     <!-- Product Selection -->
     <section class="svn-section" id="product-section" style="display:none;">
-      <h2 class="svn-section-title">Select Products</h2>
+      <h2 class="svn-section-title">Choose Your Products</h2>
+      <p class="svn-section-desc">Select which souvenir types you'd like to generate. Each product uses a unique AI design strategy.</p>
       <div class="svn-product-grid" id="product-grid"></div>
-      <div class="svn-variant-row">
-        <label>Variants per product:</label>
-        <select id="variant-count">
-          <option value="1">1</option>
-          <option value="2" selected>2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-          <option value="5">5</option>
-        </select>
+      <div class="svn-options-row">
+        <div class="svn-variant-row">
+          <label>Design variants per product:</label>
+          <div class="svn-variant-selector">
+            <button class="svn-var-btn" data-val="1">1</button>
+            <button class="svn-var-btn active" data-val="2">2</button>
+            <button class="svn-var-btn" data-val="3">3</button>
+            <button class="svn-var-btn" data-val="4">4</button>
+            <button class="svn-var-btn" data-val="5">5</button>
+          </div>
+          <input type="hidden" id="variant-count" value="2">
+        </div>
       </div>
-      <button class="svn-generate-btn" id="generate-btn">Generate Souvenirs</button>
+      <button class="svn-generate-btn" id="generate-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8Z"/></svg>
+        Generate Souvenirs
+      </button>
     </section>
 
     <!-- Progress -->
     <section class="svn-section" id="progress-section" style="display:none;">
-      <h2 class="svn-section-title">Generating...</h2>
-      <div class="svn-progress-bar"><div class="svn-progress-fill" id="progress-fill"></div></div>
-      <div class="svn-progress-log" id="progress-log"></div>
+      <div class="svn-progress-card">
+        <h2 class="svn-section-title">Creating your souvenirs...</h2>
+        <p class="svn-progress-desc">Our AI agents are analyzing your photos, researching cultural context, and designing unique products.</p>
+        <div class="svn-progress-bar"><div class="svn-progress-fill" id="progress-fill"></div></div>
+        <div class="svn-progress-pct" id="progress-pct">0%</div>
+        <div class="svn-progress-log" id="progress-log"></div>
+      </div>
     </section>
 
     <!-- Results -->
     <section class="svn-section" id="results-section" style="display:none;">
       <h2 class="svn-section-title">Your Souvenirs</h2>
+      <p class="svn-section-desc">Click any souvenir to download, or use the button below to get them all.</p>
       <div class="svn-results-grid" id="results-grid"></div>
       <div class="svn-results-actions">
-        <button class="svn-download-all-btn" id="download-all-btn">Download All</button>
+        <button class="svn-download-all-btn" id="download-all-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download All
+        </button>
+        <button class="svn-new-btn" id="new-btn">Start Over</button>
       </div>
     </section>
   </main>
 
   <footer class="svn-footer">
-    <span>Souvenir Studio by <a href="../">HikerScrolls</a></span>
+    <div class="svn-footer-inner">
+      <span>Souvenir Studio by <a href="../">HikerScrolls</a></span>
+      <span class="svn-footer-sep"></span>
+      <span>AI-generated designs for personal use</span>
+    </div>
   </footer>
 
   <script src="souvenir-core.js"></script>
