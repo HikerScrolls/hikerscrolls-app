@@ -1200,7 +1200,10 @@ const HJ_LOCALES = {
     "souvenir.startOver": "Start Over",
     "souvenir.noApiKey": "Please configure an API key first",
     "souvenir.retry": "Try Again",
-    "souvenir.noPhotos": "No photos found in this trip"
+    "souvenir.noPhotos": "No photos found in this trip",
+    "toolbox.title": "Toolbox",
+    "toolbox.addText": "Add Text Block",
+    "toolbox.assetLibrary": "Asset Library"
   },
   zh: {
     "sidebar.title": "HikerScrolls",
@@ -1258,7 +1261,10 @@ const HJ_LOCALES = {
     "souvenir.startOver": "\u91CD\u65B0\u5F00\u59CB",
     "souvenir.noApiKey": "\u8BF7\u5148\u914D\u7F6E API \u5BC6\u94A5",
     "souvenir.retry": "\u91CD\u8BD5",
-    "souvenir.noPhotos": "\u672A\u5728\u6B64\u65C5\u7A0B\u4E2D\u627E\u5230\u7167\u7247"
+    "souvenir.noPhotos": "\u672A\u5728\u6B64\u65C5\u7A0B\u4E2D\u627E\u5230\u7167\u7247",
+    "toolbox.title": "\u5DE5\u5177\u7BB1",
+    "toolbox.addText": "\u6DFB\u52A0\u6587\u672C\u6846",
+    "toolbox.assetLibrary": "\u7D20\u6750\u5E93"
   }
 };
 
@@ -3877,33 +3883,35 @@ class IllustratedViewer {
     svnBtn.textContent = "\uD83C\uDF81 " + t("souvenir.openStore");
     svnBtn.addEventListener("click", () => openSouvenirModal(this.trip));
 
-    // Row 2: template switcher + sketch
+    // Row 2: template switcher + toolbox
     const row2 = createDiv(hud, { cls: "hj-illust-hud-row" });
     buildTemplateSwitcher(row2, trip.template, (tmpl) => this.onSwitchTemplate(tmpl));
-    const sketchBtn = createDiv(row2, { cls: "hj-illust-sketch-btn" });
-    sketchBtn.textContent = t("illust.generateSketches") || "Generate Pen Drawings";
-    sketchBtn.addEventListener("click", async () => {
+    const toolWrap = createDiv(row2, { cls: "hj-tool-switcher" });
+    const toolSelect = createEl(toolWrap, "select", { cls: "hj-tool-switcher-select" });
+    const defOpt = createEl(toolSelect, "option", { text: "\u2699 " + t("toolbox.title") });
+    defOpt.value = ""; defOpt.disabled = true; defOpt.selected = true;
+    createEl(toolSelect, "option", { text: "\uD83D\uDD8C\uFE0F " + t("illust.generateSketches") }).value = "sketch";
+    createEl(toolSelect, "option", { text: "\uD83D\uDCDD " + t("toolbox.addText") }).value = "addtext";
+    createEl(toolSelect, "option", { text: "\uD83D\uDCE6 " + t("toolbox.assetLibrary") }).value = "assets";
+
+    // Toolbox actions
+    const _doSketch = async () => {
       const apiKey = getApiKey();
       if (!apiKey) { showSettingsModal(); return; }
-      sketchBtn.textContent = t("illust.generatingSketches") || "Generating...";
-      sketchBtn.style.opacity = "0.6"; sketchBtn.style.pointerEvents = "none";
-
+      toolSelect.disabled = true;
       let generated = 0;
       for (let i = 0; i < this.pts.length; i++) {
         const pt = this.pts[i];
         const photos = pt.photos && pt.photos.length > 0 ? pt.photos : [];
         if (photos.length === 0 || !photos[0].imageUrl) continue;
         try {
-          sketchBtn.textContent = (t("illust.sketchProgress") || "Generating {0}/{1}...").replace("{0}", i + 1).replace("{1}", this.pts.length);
-          // Fetch photo as base64
+          defOpt.textContent = (t("illust.sketchProgress") || "Generating {0}/{1}...").replace("{0}", i + 1).replace("{1}", this.pts.length);
           const resp = await fetch(photos[0].imageUrl);
           const blob = await resp.blob();
           const reader = new FileReader();
           const base64 = await new Promise((resolve) => { reader.onload = () => resolve(reader.result.split(",")[1]); reader.readAsDataURL(blob); });
           const mimeType = blob.type || "image/jpeg";
           const result = await generatePhotoSketch(base64, mimeType, apiKey);
-
-          // Show sketch on back face of flip card
           const backFace = this._illustSketchOverlays[i];
           if (backFace && result && result.base64) {
             const skImg = backFace.querySelector(".hj-illust-sketch");
@@ -3916,20 +3924,27 @@ class IllustratedViewer {
           generated++;
         } catch(err) { console.error("[Sketch] Error for", pt.title, err); }
       }
+      toolSelect.disabled = false; toolSelect.selectedIndex = 0;
+      defOpt.textContent = "\u2699 " + t("toolbox.title");
+      if (generated > 0) this._illustForceReveal = true;
+    };
 
-      sketchBtn.style.opacity = "1"; sketchBtn.style.pointerEvents = "";
-      if (generated > 0) {
-        this._illustForceReveal = true;
-        sketchBtn.textContent = (t("illust.sketchDone") || "Sketches Done") + " (" + generated + ")";
-      } else {
-        sketchBtn.textContent = t("illust.generateSketches") || "Generate Pen Drawings";
+    toolSelect.addEventListener("change", () => {
+      const val = toolSelect.value;
+      toolSelect.selectedIndex = 0;
+      if (val === "sketch") _doSketch();
+      else if (val === "addtext") {
+        // Trigger add text block (same as floating button)
+        if (this._addTextAction) this._addTextAction();
       }
+      else if (val === "assets") openSouvenirModal(this.trip);
     });
 
-    // Add text block button
+    // Add text block (hidden FAB, triggered via toolbox)
     const addTextBtn = createDiv(root, { cls: "hj-illust-addtext-btn" });
     addTextBtn.innerHTML = "&#x1F4DD;";
     addTextBtn.title = "Add Text Block";
+    addTextBtn.style.display = "none";
 
     // Progress bar
     const progressBar = createDiv(root, { cls: "hj-illust-progress-bar" });
@@ -3958,14 +3973,14 @@ class IllustratedViewer {
       this._illustTileDirty = true;
     };
 
-    addTextBtn.addEventListener("click", () => {
+    this._addTextAction = () => {
       const rw = root.offsetWidth, rh = root.offsetHeight;
       const cx = (rw / 2 - vpX) / vpScale, cy = (rh / 2 - vpY) / vpScale;
       const newTb = createIllustTextBlock(cx - 100, cy - 40, 200, 80, "");
       newTb.el.classList.add("hj-illust-visible");
       newTb.content.focus();
       this._illustCanvasDirty = true; this._saveIllustCanvasDebounced();
-    });
+    };
 
     // Wheel: Ctrl+wheel = zoom, normal wheel = scroll
     root.addEventListener("wheel", (e) => {

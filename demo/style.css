@@ -457,11 +457,20 @@ body { margin: 0; padding: 0; font-family: var(--font-text); color: var(--text-n
   cursor: pointer; transition: all 0.15s;
 }
 .hj-illust-hud-row .hj-template-switcher-select:hover { background: rgba(255,255,255,1); }
-.hj-illust-hud-row .hj-illust-sketch-btn {
-  display: block; margin-top: 0; width: 100%; box-sizing: border-box; text-align: center;
-  padding: 7px 12px; font-size: 0.75rem;
+.hj-illust-hud-row .hj-tool-switcher { display: contents; }
+.hj-tool-switcher-select {
+  width: 100%; box-sizing: border-box;
+  padding: 7px 24px 7px 14px; font-size: 0.75rem; font-weight: 500;
+  color: #57534e; background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(0,0,0,0.08); border-radius: 16px;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  cursor: pointer; transition: all 0.15s;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2378716c'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
 }
+.hj-tool-switcher-select:hover { background-color: rgba(255,255,255,1); }
 .hj-illust-back-btn {
   display: inline-block; margin-top: 10px;
   padding: 7px 14px; font-size: 0.75rem; font-weight: 500;
@@ -492,16 +501,6 @@ body { margin: 0; padding: 0; font-family: var(--font-text); color: var(--text-n
 .hj-illust-addtext-btn:hover { transform: scale(1.1); background: #fff; }
 
 /* Illustrated: Generate Sketches button */
-.hj-illust-sketch-btn {
-  display: inline-block; margin-top: 8px;
-  padding: 5px 12px; font-size: 0.75rem; font-weight: 500;
-  color: #57534e; background: rgba(255,255,255,0.85);
-  border-radius: 16px; cursor: pointer;
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-  border: 1px solid rgba(0,0,0,0.08); transition: all 0.15s;
-  font-family: var(--font-monospace); letter-spacing: 0.02em;
-}
-.hj-illust-sketch-btn:hover { background: rgba(255,255,255,1); }
 
 /* Glass text block */
 .hj-glass-block {
