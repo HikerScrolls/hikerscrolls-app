@@ -28,7 +28,7 @@ const SouvenirCore = (() => {
   };
 
   const RULES = {
-    postcard: "148x100mm landscape, 300dpi. 4mm white border. Include headline, location name, date. Design fills the front. Pure white background, no mockup surface.",
+    postcard: "148x100mm landscape, 300dpi. NO white border \u2014 design fills edge to edge. Paper texture feel, NOT metallic or enamel. Think real printed postcard: warm matte finish, natural ink colors, hand-illustrated or photographic style. Include headline, location name, date. The result should look like a postcard you buy at a museum gift shop, not a metal plate. Pure white background behind the card only.",
     magnet: "70x50mm portrait, 300dpi. Full-bleed. 3D ENAMEL RELIEF: Multiple raised layers separated by polished metallic lines. Back layer recessed (sky/atmosphere), mid layer raised (landmarks), front layer highest (text band, fine details). Bottom: solid raised band, location name in white bold. The magnet must look like a physical object you can pick up and feel. Pure white background, no fabric/table surface.",
     sticker: "60x60mm, 300dpi. 4mm white die-cut stroke outline. Bold and readable at small scale. Location or short text at base. Clean design on pure white background, no mockup.",
     pin: "38mm circle, 400dpi (output as square, design inside circle). CLOISONNE ENAMEL: Fine metal wire defines all color boundaries (visible as raised lines). Enamel fills sit slightly recessed within metal walls. Polished border ring. Location arc text at bottom. Max 6 flat enamel colors. Must look like a jewel, not a printed sticker. Pure white background, no fabric/felt surface.",
@@ -635,8 +635,17 @@ Stamp top: "COMMEMORATIVE". Pin arc: location name.
 
 === OUTPUT RULES ===
 Pure white (#FFFFFF) background \u2014 NO mockup surface, NO fabric/table/felt behind the product.
-The design itself should look like a REAL PHYSICAL PRODUCT: enamel relief for magnets, cloisonne for pins, etc.
-But the background must be clean white \u2014 as if photographing the finished product on white paper.
+PRODUCT-SPECIFIC FINISH:
+- Postcard: PAPER feel, warm matte print, natural ink colors. NO metallic/enamel/3D relief. Like a real printed postcard.
+- Magnet: 3D enamel relief with metallic dividers. Physical object you can pick up.
+- Sticker: Clean die-cut graphic, bold colors, flat design.
+- Pin: Cloisonne enamel with fine metal wire boundaries.
+- Stamp: Engraving/crosshatch line style, classic print.
+COMPOSITION QUALITY:
+- All elements must blend naturally \u2014 no awkward cuts, no disjointed collage.
+- Scenes should flow into each other with smooth transitions.
+- Typography must be clean, well-placed, and readable.
+- Color harmony across the entire design.
 Museum gift shop standard. Worth keeping 20 years.
 Each variant must offer something genuinely different.`;
 
