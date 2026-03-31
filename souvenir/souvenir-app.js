@@ -396,19 +396,13 @@ function hasOwnApiKey() {
 
 function updateGenerateBtn() {
   const btn = document.getElementById("generate-btn");
+  const hint = document.getElementById("usage-hint");
   if (!btn) return;
   if (hasOwnApiKey()) {
     btn.disabled = false;
-    return;
-  }
-  const used = getUsageCount();
-  const remaining = MAX_FREE_GENERATIONS - used;
-  if (remaining <= 0) {
-    btn.disabled = true;
-    btn.innerHTML = "No free generations left — add API key in Settings";
+    if (hint) hint.textContent = "";
   } else {
-    const hint = document.getElementById("usage-hint");
-    if (hint) hint.textContent = remaining + " free generation" + (remaining !== 1 ? "s" : "") + " remaining";
+    if (hint) hint.textContent = "API key required — click the gear icon to add yours";
   }
 }
 
@@ -416,13 +410,10 @@ function setupGenerate() {
   document.getElementById("generate-btn").addEventListener("click", async () => {
     if (generating || !photos.length || !selectedProducts.size) return;
 
-    // Check usage limit (skip if user has own API key)
+    // Require user's own API key
     if (!hasOwnApiKey()) {
-      const used = getUsageCount();
-      if (used >= MAX_FREE_GENERATIONS) {
-        alert("You've used all " + MAX_FREE_GENERATIONS + " free generations.\n\nTo continue, add your own API key in Settings (gear icon).");
-        return;
-      }
+      alert("Please add your AI API key first.\n\nClick the gear icon (top right) to open Settings and enter your Gemini, OpenAI, or other API key.");
+      return;
     }
 
     generating = true;
