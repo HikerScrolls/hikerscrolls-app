@@ -2563,8 +2563,10 @@ class ScrollytellingViewer {
       createEl(s, "span", { text: `\uD83D\uDCF8 ${(trip.waypoints || []).length} ${t("trip.stops")}` });
     }
     if (trip.description) createEl(h, "p", { text: trip.description, cls: "hj-header-desc" });
-    buildTemplateSwitcher(h, trip.template, (tmpl) => this.onSwitchTemplate(tmpl));
-    const svnBtn = createDiv(h, { cls: "hj-header-svn-btn" });
+    // Switch row: template switcher + souvenir button inline
+    const row = createDiv(h, { cls: "hj-header-switch-row" });
+    buildTemplateSwitcher(row, trip.template, (tmpl) => this.onSwitchTemplate(tmpl));
+    const svnBtn = createDiv(row, { cls: "hj-header-svn-btn" });
     svnBtn.textContent = "\uD83C\uDF81 " + t("souvenir.openStore");
     svnBtn.addEventListener("click", () => openSouvenirModal(this.trip));
   }
@@ -3304,15 +3306,16 @@ class ScrapbookViewer {
     createEl(hudTitle, "h1", { text: trip.name });
     createEl(hudTitle, "p", { text: (t("template.scrapbook") || "SCRAPBOOK").toUpperCase() });
 
-    const backBtn = createDiv(hud, { cls: "hj-scrapbook-back-btn" });
+    // 2x2 grid toolbar
+    const grid = createDiv(hud, { cls: "hj-scrapbook-hud-grid" });
+    const backBtn = createDiv(grid, { cls: "hj-scrapbook-grid-btn" });
     backBtn.textContent = "\u2190 " + t("trip.backToMap");
     backBtn.addEventListener("click", () => this.onBack());
-    buildTemplateSwitcher(hud, trip.template, (tmpl) => this.onSwitchTemplate(tmpl));
-    const svnBtn = createDiv(hud, { cls: "hj-scrapbook-hud-btn hj-svn-hud-btn" });
+    const svnBtn = createDiv(grid, { cls: "hj-scrapbook-grid-btn" });
     svnBtn.textContent = "\uD83C\uDF81 " + t("souvenir.openStore");
     svnBtn.addEventListener("click", () => openSouvenirModal(this.trip));
-
-    const overviewBtn = createDiv(hud, { cls: "hj-scrapbook-overview-btn" });
+    buildTemplateSwitcher(grid, trip.template, (tmpl) => this.onSwitchTemplate(tmpl));
+    const overviewBtn = createDiv(grid, { cls: "hj-scrapbook-grid-btn" });
     overviewBtn.textContent = "\u{1F50D} VIEW ALL";
     overviewBtn.addEventListener("click", () => this._initViewport(root));
 
@@ -3865,16 +3868,19 @@ class IllustratedViewer {
     createEl(hudTitle, "h1", { text: trip.name });
     createEl(hudTitle, "p", { text: (t("template.illustrated") || "ILLUSTRATED MAP").toUpperCase() });
 
-    const backBtn = createDiv(hud, { cls: "hj-illust-back-btn" });
+    // Row 1: back + souvenir
+    const row1 = createDiv(hud, { cls: "hj-illust-hud-row" });
+    const backBtn = createDiv(row1, { cls: "hj-illust-back-btn" });
     backBtn.textContent = "\u2190 " + t("trip.backToMap");
     backBtn.addEventListener("click", () => this.onBack());
-    buildTemplateSwitcher(hud, trip.template, (tmpl) => this.onSwitchTemplate(tmpl));
-    const svnBtn = createDiv(hud, { cls: "hj-illust-hud-btn hj-svn-hud-btn" });
+    const svnBtn = createDiv(row1, { cls: "hj-illust-back-btn" });
     svnBtn.textContent = "\uD83C\uDF81 " + t("souvenir.openStore");
     svnBtn.addEventListener("click", () => openSouvenirModal(this.trip));
 
-    // Generate Sketches button
-    const sketchBtn = createDiv(hud, { cls: "hj-illust-sketch-btn" });
+    // Row 2: template switcher + sketch
+    const row2 = createDiv(hud, { cls: "hj-illust-hud-row" });
+    buildTemplateSwitcher(row2, trip.template, (tmpl) => this.onSwitchTemplate(tmpl));
+    const sketchBtn = createDiv(row2, { cls: "hj-illust-sketch-btn" });
     sketchBtn.textContent = t("illust.generateSketches") || "Generate Pen Drawings";
     sketchBtn.addEventListener("click", async () => {
       const apiKey = getApiKey();
