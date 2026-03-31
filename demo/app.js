@@ -1182,7 +1182,25 @@ const HJ_LOCALES = {
     "settings.geminiModel": "Gemini Model",
     "settings.stadiaKey": "Stadia Maps API Key",
     "settings.stadiaDesc": "For Stamen Toner / Watercolor map styles. Free at",
-    "settings.save": "Save"
+    "settings.save": "Save",
+    "souvenir.title": "Souvenir Store",
+    "souvenir.openStore": "Souvenir Store",
+    "souvenir.subtitle": "AI-powered travel souvenirs from your journey",
+    "souvenir.postcard": "Postcard",
+    "souvenir.magnet": "Fridge Magnet",
+    "souvenir.sticker": "Sticker",
+    "souvenir.pin": "Enamel Pin",
+    "souvenir.stamp": "Stamp",
+    "souvenir.variants": "Variants per product",
+    "souvenir.generate": "Generate Souvenirs",
+    "souvenir.collecting": "Collecting photos...",
+    "souvenir.ready": "Your Souvenirs Are Ready!",
+    "souvenir.download": "Download",
+    "souvenir.downloadAll": "Download All",
+    "souvenir.startOver": "Start Over",
+    "souvenir.noApiKey": "Please configure an API key first",
+    "souvenir.retry": "Try Again",
+    "souvenir.noPhotos": "No photos found in this trip"
   },
   zh: {
     "sidebar.title": "HikerScrolls",
@@ -1222,7 +1240,25 @@ const HJ_LOCALES = {
     "settings.geminiModel": "Gemini \u6A21\u578B",
     "settings.stadiaKey": "Stadia Maps API \u5BC6\u94A5",
     "settings.stadiaDesc": "\u7528\u4E8E Stamen Toner / Watercolor \u5730\u56FE\u6837\u5F0F\u3002\u514D\u8D39\u83B7\u53D6\u4E8E",
-    "settings.save": "\u4FDD\u5B58"
+    "settings.save": "\u4FDD\u5B58",
+    "souvenir.title": "\u7EAA\u5FF5\u54C1\u5546\u5E97",
+    "souvenir.openStore": "\u7EAA\u5FF5\u54C1\u5546\u5E97",
+    "souvenir.subtitle": "AI \u751F\u6210\u65C5\u884C\u7EAA\u5FF5\u54C1",
+    "souvenir.postcard": "\u660E\u4FE1\u7247",
+    "souvenir.magnet": "\u51B0\u7BB1\u8D34",
+    "souvenir.sticker": "\u8D34\u7EB8",
+    "souvenir.pin": "\u73D0\u7440\u5FBD\u7AE0",
+    "souvenir.stamp": "\u7EAA\u5FF5\u90AE\u7968",
+    "souvenir.variants": "\u6BCF\u4EA7\u54C1\u53D8\u4F53\u6570",
+    "souvenir.generate": "\u751F\u6210\u7EAA\u5FF5\u54C1",
+    "souvenir.collecting": "\u6B63\u5728\u6536\u96C6\u7167\u7247...",
+    "souvenir.ready": "\u4F60\u7684\u7EAA\u5FF5\u54C1\u5DF2\u5C31\u7EEA\uFF01",
+    "souvenir.download": "\u4E0B\u8F7D",
+    "souvenir.downloadAll": "\u5168\u90E8\u4E0B\u8F7D",
+    "souvenir.startOver": "\u91CD\u65B0\u5F00\u59CB",
+    "souvenir.noApiKey": "\u8BF7\u5148\u914D\u7F6E API \u5BC6\u94A5",
+    "souvenir.retry": "\u91CD\u8BD5",
+    "souvenir.noPhotos": "\u672A\u5728\u6B64\u65C5\u7A0B\u4E2D\u627E\u5230\u7167\u7247"
   }
 };
 
@@ -1285,6 +1321,10 @@ function saveSettings(settings) {
 let _serverStadiaKey = "";
 function getStadiaKey() {
   return getSettings().stadiaApiKey || _serverStadiaKey || "";
+}
+function getApiKey() {
+  const keys = getSettings().apiKeys || {};
+  return Object.values(keys).find(k => k && k.trim()) || "";
 }
 
 // Fetch server config (Stadia key etc.) on startup
@@ -1500,6 +1540,345 @@ async function showSettingsModal() {
 
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
+}
+
+// === Souvenir Store Integration ===
+
+const SVN_PRODUCTS = [
+  { key: "postcard", svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="12" y1="10" x2="12" y2="20"/></svg>' },
+  { key: "magnet", svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2v6a6 6 0 0 0 12 0V2"/><rect x="3" y="2" width="6" height="4" rx="1"/><rect x="15" y="2" width="6" height="4" rx="1"/></svg>' },
+  { key: "sticker", svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>' },
+  { key: "pin", svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>' },
+  { key: "stamp", svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="6" y="6" width="12" height="12" rx="1"/></svg>' }
+];
+
+async function _collectTripPhotosAsBase64(tripData, onProgress) {
+  const results = [];
+  const allPhotos = [];
+  for (const wp of (tripData.waypoints || [])) {
+    for (const ph of (wp.photos || [])) {
+      if (ph.imageUrl) allPhotos.push({ ph, wp });
+    }
+  }
+  for (let i = 0; i < allPhotos.length; i++) {
+    const { ph, wp } = allPhotos[i];
+    if (onProgress) onProgress(`${t("souvenir.collecting")} (${i + 1}/${allPhotos.length})`);
+    try {
+      let blob;
+      if (ph.imageUrl.startsWith("idb://")) {
+        const buf = await getPhotoFromIDB(ph.imageUrl.replace("idb://", ""));
+        if (!buf) continue;
+        blob = new Blob([buf], { type: "image/jpeg" });
+      } else if (ph.imageUrl.startsWith("blob:")) {
+        blob = await (await fetch(ph.imageUrl)).blob();
+      } else {
+        const resp = await fetch(ph.imageUrl);
+        if (!resp.ok) continue;
+        blob = await resp.blob();
+      }
+      // Compress to max 768px for API efficiency
+      const base64 = await new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(blob);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          let w = img.width, h = img.height;
+          const MAX = 768;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", 0.85).split(",")[1]);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("img load fail")); };
+        img.src = url;
+      });
+      results.push({ base64, mimeType: "image/jpeg", location: wp.title, title: ph.title || wp.title });
+    } catch (e) { console.warn("[SVN] Photo fetch failed:", ph.imageUrl, e.message); }
+  }
+  return results;
+}
+
+function openSouvenirModal(tripData) {
+  const existing = document.querySelector(".hj-svn-overlay");
+  if (existing) existing.remove();
+
+  let selectedProducts = new Set(["postcard", "magnet", "sticker"]);
+  let variantCount = 2;
+  let results = [];
+
+  const overlay = document.createElement("div");
+  overlay.className = "hj-svn-overlay";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+  const modal = document.createElement("div");
+  modal.className = "hj-svn-modal";
+  modal.addEventListener("click", (e) => e.stopPropagation());
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "hj-svn-close";
+  closeBtn.innerHTML = "&times;";
+  closeBtn.addEventListener("click", () => overlay.remove());
+  modal.appendChild(closeBtn);
+
+  const body = document.createElement("div");
+  body.className = "hj-svn-modal-body";
+  modal.appendChild(body);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // ── Phase 1: Product Selection ──
+  function renderSelect() {
+    body.innerHTML = "";
+    // Header
+    const header = document.createElement("div");
+    header.className = "hj-svn-header";
+    header.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8Z"/></svg>';
+    const titleText = document.createElement("div");
+    titleText.innerHTML = '<div class="hj-svn-title">' + t("souvenir.title") + '</div><div class="hj-svn-subtitle">' + t("souvenir.subtitle") + '</div>';
+    header.appendChild(titleText);
+    body.appendChild(header);
+
+    // Product grid
+    const grid = document.createElement("div");
+    grid.className = "hj-souvenir-grid";
+    for (const p of SVN_PRODUCTS) {
+      const card = document.createElement("div");
+      card.className = "hj-svn-card" + (selectedProducts.has(p.key) ? " hj-svn-sel" : "");
+      card.innerHTML = '<div class="hj-svn-card-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+        '<div class="hj-svn-card-icon">' + p.svg + '</div>' +
+        '<div class="hj-svn-card-label">' + t("souvenir." + p.key) + '</div>';
+      card.addEventListener("click", () => {
+        if (selectedProducts.has(p.key)) selectedProducts.delete(p.key);
+        else selectedProducts.add(p.key);
+        card.classList.toggle("hj-svn-sel");
+      });
+      grid.appendChild(card);
+    }
+    body.appendChild(grid);
+
+    // Footer: variant stepper + generate button
+    const footer = document.createElement("div");
+    footer.className = "hj-svn-footer";
+
+    // Variant stepper
+    const varWrap = document.createElement("div");
+    varWrap.className = "hj-svn-var-wrap";
+    const varLabel = document.createElement("span");
+    varLabel.className = "hj-svn-var-label";
+    varLabel.textContent = t("souvenir.variants");
+    varWrap.appendChild(varLabel);
+
+    const stepper = document.createElement("div");
+    stepper.className = "hj-svn-stepper";
+    const minusBtn = document.createElement("button");
+    minusBtn.textContent = "\u2212";
+    minusBtn.className = "hj-svn-step-btn";
+    const countEl = document.createElement("span");
+    countEl.className = "hj-svn-step-count";
+    countEl.textContent = String(variantCount);
+    const plusBtn = document.createElement("button");
+    plusBtn.textContent = "+";
+    plusBtn.className = "hj-svn-step-btn";
+    minusBtn.addEventListener("click", () => { if (variantCount > 1) { variantCount--; countEl.textContent = String(variantCount); } });
+    plusBtn.addEventListener("click", () => { if (variantCount < 5) { variantCount++; countEl.textContent = String(variantCount); } });
+    stepper.appendChild(minusBtn);
+    stepper.appendChild(countEl);
+    stepper.appendChild(plusBtn);
+    varWrap.appendChild(stepper);
+    footer.appendChild(varWrap);
+
+    // Generate button
+    const genBtn = document.createElement("button");
+    genBtn.className = "hj-svn-gen-btn";
+    genBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8Z"/></svg> ' + t("souvenir.generate");
+    genBtn.addEventListener("click", () => {
+      if (!selectedProducts.size) return;
+      if (!getApiKey()) { overlay.remove(); showSettingsModal(); return; }
+      renderProgress();
+    });
+    footer.appendChild(genBtn);
+    body.appendChild(footer);
+  }
+
+  // ── Phase 2: Progress ──
+  async function renderProgress() {
+    body.innerHTML = "";
+    const wrap = document.createElement("div");
+    wrap.className = "hj-svn-progress-wrap";
+
+    const statusText = document.createElement("div");
+    statusText.className = "hj-svn-status";
+    statusText.textContent = t("souvenir.collecting");
+    wrap.appendChild(statusText);
+
+    const barOuter = document.createElement("div");
+    barOuter.className = "hj-svn-bar-outer";
+    const barFill = document.createElement("div");
+    barFill.className = "hj-svn-bar-fill";
+    barOuter.appendChild(barFill);
+    wrap.appendChild(barOuter);
+
+    const log = document.createElement("div");
+    log.className = "hj-svn-log";
+    wrap.appendChild(log);
+
+    body.appendChild(wrap);
+
+    const addLog = (msg) => {
+      const line = document.createElement("div");
+      line.textContent = msg;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    };
+
+    let step = 0;
+    const products = [...selectedProducts];
+    const totalSteps = 6 + products.length * (variantCount * 3 + 2);
+
+    const onStatus = (msg) => {
+      step++;
+      const pct = Math.min(99, Math.round(step / totalSteps * 100));
+      barFill.style.width = pct + "%";
+      statusText.textContent = msg;
+      addLog(msg);
+    };
+
+    try {
+      // Collect photos
+      addLog(t("souvenir.collecting"));
+      const photos = await _collectTripPhotosAsBase64(tripData, (msg) => { statusText.textContent = msg; });
+      if (!photos.length) {
+        statusText.textContent = t("souvenir.noPhotos");
+        addLog(t("souvenir.noPhotos"));
+        const retryBtn = document.createElement("button");
+        retryBtn.className = "hj-svn-gen-btn";
+        retryBtn.style.marginTop = "16px";
+        retryBtn.textContent = "\u2190 " + t("souvenir.startOver");
+        retryBtn.addEventListener("click", renderSelect);
+        wrap.appendChild(retryBtn);
+        return;
+      }
+      addLog("Collected " + photos.length + " photos");
+      barFill.style.width = "5%";
+
+      // Generate
+      results = await SouvenirCore.generate(tripData, photos, products, variantCount, onStatus);
+
+      barFill.style.width = "100%";
+      statusText.textContent = "Done! " + results.length + " souvenirs generated.";
+      addLog("Done! " + results.length + " souvenirs generated.");
+
+      setTimeout(() => renderResults(), 800);
+    } catch (e) {
+      statusText.textContent = "Error: " + e.message;
+      addLog("Error: " + e.message);
+      console.error("[SVN]", e);
+      const retryBtn = document.createElement("button");
+      retryBtn.className = "hj-svn-gen-btn";
+      retryBtn.style.marginTop = "16px";
+      retryBtn.textContent = t("souvenir.retry");
+      retryBtn.addEventListener("click", () => renderProgress());
+      wrap.appendChild(retryBtn);
+    }
+  }
+
+  // ── Phase 3: Results ──
+  function renderResults() {
+    body.innerHTML = "";
+    const header = document.createElement("div");
+    header.className = "hj-svn-results-header";
+    header.innerHTML = '<h2>' + t("souvenir.ready") + '</h2><p>' + tripData.name + ' \u00B7 ' + results.length + ' souvenirs</p>';
+    body.appendChild(header);
+
+    // Group by type
+    const grouped = {};
+    results.forEach(r => {
+      if (!r || !r.base64) return;
+      if (!grouped[r.type]) grouped[r.type] = [];
+      grouped[r.type].push(r);
+    });
+
+    const scroll = document.createElement("div");
+    scroll.className = "hj-svn-results-scroll";
+
+    for (const [type, items] of Object.entries(grouped)) {
+      const section = document.createElement("div");
+      section.className = "hj-svn-result-section";
+      const sectionTitle = document.createElement("h3");
+      sectionTitle.textContent = t("souvenir." + type) || type;
+      section.appendChild(sectionTitle);
+
+      const grid = document.createElement("div");
+      grid.className = "hj-svn-result-grid";
+      items.forEach((r, i) => {
+        const card = document.createElement("div");
+        card.className = "hj-svn-result-card";
+        card.dataset.type = r.type;
+
+        const img = document.createElement("img");
+        img.className = "hj-svn-result-img";
+        img.src = "data:" + (r.mime || "image/png") + ";base64," + r.base64;
+        img.alt = r.type + " " + (r.strategy || "");
+        card.appendChild(img);
+
+        const info = document.createElement("div");
+        info.className = "hj-svn-result-info";
+        info.innerHTML = '<span class="hj-svn-result-type">' + (r.strategy || "").replace(/_/g, " ") + '</span>';
+        card.appendChild(info);
+
+        const dlBtn = document.createElement("button");
+        dlBtn.className = "hj-svn-download-btn";
+        dlBtn.textContent = t("souvenir.download");
+        dlBtn.addEventListener("click", () => {
+          const a = document.createElement("a");
+          a.href = "data:" + (r.mime || "image/png") + ";base64," + r.base64;
+          a.download = "souvenir-" + r.type + "-" + (r.strategy || "v" + (i + 1)) + ".png";
+          a.click();
+        });
+        card.appendChild(dlBtn);
+        grid.appendChild(card);
+      });
+      section.appendChild(grid);
+      scroll.appendChild(section);
+    }
+    body.appendChild(scroll);
+
+    // Footer
+    const footer = document.createElement("div");
+    footer.className = "hj-svn-results-footer";
+
+    const dlAllBtn = document.createElement("button");
+    dlAllBtn.className = "hj-svn-gen-btn";
+    dlAllBtn.textContent = t("souvenir.downloadAll");
+    dlAllBtn.addEventListener("click", () => {
+      results.forEach((r, i) => {
+        if (!r?.base64) return;
+        setTimeout(() => {
+          const a = document.createElement("a");
+          a.href = "data:" + (r.mime || "image/png") + ";base64," + r.base64;
+          a.download = "souvenir-" + (r.type || "item") + "-" + (r.strategy || "v" + (i + 1)) + ".png";
+          a.click();
+        }, i * 200);
+      });
+    });
+    footer.appendChild(dlAllBtn);
+
+    const overBtn = document.createElement("button");
+    overBtn.className = "hj-svn-secondary-btn";
+    overBtn.textContent = t("souvenir.startOver");
+    overBtn.addEventListener("click", renderSelect);
+    footer.appendChild(overBtn);
+
+    body.appendChild(footer);
+  }
+
+  // Start with product selection
+  renderSelect();
 }
 
 // === AI Helpers (via /api/ai proxy) ===
@@ -2185,6 +2564,9 @@ class ScrollytellingViewer {
     }
     if (trip.description) createEl(h, "p", { text: trip.description, cls: "hj-header-desc" });
     buildTemplateSwitcher(h, trip.template, (tmpl) => this.onSwitchTemplate(tmpl));
+    const svnBtn = createDiv(h, { cls: "hj-header-svn-btn" });
+    svnBtn.textContent = "\uD83C\uDF81 " + t("souvenir.openStore");
+    svnBtn.addEventListener("click", () => openSouvenirModal(this.trip));
   }
 
   mkCard(el, p, i) {
@@ -2926,6 +3308,9 @@ class ScrapbookViewer {
     backBtn.textContent = "\u2190 " + t("trip.backToMap");
     backBtn.addEventListener("click", () => this.onBack());
     buildTemplateSwitcher(hud, trip.template, (tmpl) => this.onSwitchTemplate(tmpl));
+    const svnBtn = createDiv(hud, { cls: "hj-scrapbook-hud-btn hj-svn-hud-btn" });
+    svnBtn.textContent = "\uD83C\uDF81 " + t("souvenir.openStore");
+    svnBtn.addEventListener("click", () => openSouvenirModal(this.trip));
 
     const overviewBtn = createDiv(hud, { cls: "hj-scrapbook-overview-btn" });
     overviewBtn.textContent = "\u{1F50D} VIEW ALL";
@@ -3484,6 +3869,9 @@ class IllustratedViewer {
     backBtn.textContent = "\u2190 " + t("trip.backToMap");
     backBtn.addEventListener("click", () => this.onBack());
     buildTemplateSwitcher(hud, trip.template, (tmpl) => this.onSwitchTemplate(tmpl));
+    const svnBtn = createDiv(hud, { cls: "hj-illust-hud-btn hj-svn-hud-btn" });
+    svnBtn.textContent = "\uD83C\uDF81 " + t("souvenir.openStore");
+    svnBtn.addEventListener("click", () => openSouvenirModal(this.trip));
 
     // Generate Sketches button
     const sketchBtn = createDiv(hud, { cls: "hj-illust-sketch-btn" });
