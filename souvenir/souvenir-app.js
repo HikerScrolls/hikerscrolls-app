@@ -234,6 +234,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupNewBtn();
   const settingsBtn = document.getElementById("settings-btn");
   if (settingsBtn) settingsBtn.addEventListener("click", showSettingsModal);
+  updateGenerateBtn();
 });
 
 // ── Step Indicator ──
@@ -377,9 +378,53 @@ function setupVariantSelector() {
 }
 
 // ── Generate ──
+// ── Usage limiter (3 free generations per visitor) ──
+const USAGE_KEY = "hikerscrolls_svn_usage";
+const MAX_FREE_GENERATIONS = 3;
+
+function getUsageCount() {
+  try { return parseInt(localStorage.getItem(USAGE_KEY) || "0", 10); } catch { return 0; }
+}
+function incrementUsage() {
+  localStorage.setItem(USAGE_KEY, String(getUsageCount() + 1));
+}
+function hasOwnApiKey() {
+  const s = getSvnSettings();
+  const keys = s.apiKeys || {};
+  return Object.values(keys).some(k => k && k.trim().length > 0);
+}
+
+function updateGenerateBtn() {
+  const btn = document.getElementById("generate-btn");
+  if (!btn) return;
+  if (hasOwnApiKey()) {
+    btn.disabled = false;
+    return;
+  }
+  const used = getUsageCount();
+  const remaining = MAX_FREE_GENERATIONS - used;
+  if (remaining <= 0) {
+    btn.disabled = true;
+    btn.innerHTML = "No free generations left — add API key in Settings";
+  } else {
+    const hint = document.getElementById("usage-hint");
+    if (hint) hint.textContent = remaining + " free generation" + (remaining !== 1 ? "s" : "") + " remaining";
+  }
+}
+
 function setupGenerate() {
   document.getElementById("generate-btn").addEventListener("click", async () => {
     if (generating || !photos.length || !selectedProducts.size) return;
+
+    // Check usage limit (skip if user has own API key)
+    if (!hasOwnApiKey()) {
+      const used = getUsageCount();
+      if (used >= MAX_FREE_GENERATIONS) {
+        alert("You've used all " + MAX_FREE_GENERATIONS + " free generations.\n\nTo continue, add your own API key in Settings (gear icon).");
+        return;
+      }
+    }
+
     generating = true;
     const btn = document.getElementById("generate-btn");
     btn.disabled = true; btn.innerHTML = "Generating...";
@@ -419,7 +464,9 @@ function setupGenerate() {
       results = await SouvenirCore.generate(tripData, photoBase64Array, products, variantsCount, onStatus);
       progressFill.style.width = "100%"; progressPct.textContent = "100%";
       onStatus("Done! " + results.length + " souvenirs generated.");
+      if (!hasOwnApiKey()) incrementUsage();
       renderResults();
+      updateGenerateBtn();
     } catch (e) {
       onStatus("Error: " + e.message);
       console.error(e);

@@ -3,7 +3,7 @@
 
 // ── Rate limiter (in-memory, resets on cold start) ──
 const rateLimits = new Map();
-const RATE_LIMIT = parseInt(process.env.RATE_LIMIT_PER_MIN || "10", 10);
+const RATE_LIMIT = parseInt(process.env.RATE_LIMIT_PER_MIN || "60", 10);
 
 function checkRateLimit(ip) {
   const now = Date.now();
