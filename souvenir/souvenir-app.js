@@ -131,6 +131,11 @@ async function showSettingsModal() {
     { id: "claude", name: "Claude", ph: "sk-ant-..." },
     { id: "openai", name: "OpenAI", ph: "sk-..." },
     { id: "qwen", name: "Qwen", ph: "sk-..." },
+    { id: "kimi", name: "Kimi", ph: "sk-..." },
+    { id: "deepseek", name: "Deepseek", ph: "sk-..." },
+    { id: "minimax", name: "MiniMax", ph: "..." },
+    { id: "seedream", name: "Seedream", ph: "..." },
+    { id: "tavily", name: "Tavily", ph: "tvly-..." },
   ];
   for (const kp of keyProviders) {
     const row = document.createElement("div");
