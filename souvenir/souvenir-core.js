@@ -603,8 +603,13 @@ Output ONLY strict JSON:
 
     const prompt = `You are a senior travel souvenir designer. Create variant ${varNum} of 5.
 
-You have REAL PHOTOS above \u2014 all from same trip, different locations.
-Study each one carefully. You know what each place looks like.
+Above are the traveler's OWN PHOTOS from this trip \u2014 they are your PRIMARY design material.
+Study each photo carefully. You may:
+- Use a single standout photo as the hero, artistically enhanced
+- Blend multiple photos with smooth transitions and artistic treatment
+- Incorporate local cultural elements, architectural motifs, and symbols discovered in research
+- Use the GPX route shape as a design element if available
+The photos should be CENTRAL to the design, enhanced with artistic style and cultural context.
 
 === YOUR CREATIVE BRIEF: "${stratName}" ===
 ${stratDir}
@@ -642,8 +647,10 @@ PRODUCT-SPECIFIC FINISH:
 - Pin: Cloisonne enamel with fine metal wire boundaries.
 - Stamp: Engraving/crosshatch line style, classic print.
 COMPOSITION QUALITY:
-- All elements must blend naturally \u2014 no awkward cuts, no disjointed collage.
-- Scenes should flow into each other with smooth transitions.
+- The design must have INTENTIONAL COMPOSITION \u2014 not just photos placed side by side.
+- If using multiple photos, they must flow into each other with artistic transitions (gradient blends, overlapping layers, shared color palette).
+- If using a single photo, apply artistic treatment (illustration style, color grading, stylized rendering).
+- Incorporate cultural motifs and local elements as decorative accents.
 - Typography must be clean, well-placed, and readable.
 - Color harmony across the entire design.
 Museum gift shop standard. Worth keeping 20 years.
@@ -659,6 +666,46 @@ Each variant must offer something genuinely different.`;
 
     const result = await callAI("image", { parts });
     return result; // {base64, mime} or null
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Quality Judge — evaluates generated souvenir image
+  // ═══════════════════════════════════════════════════════════════════
+  async function _judgeImage(imageBase64, imageMime, prodType, stratName) {
+    try {
+      const prompt = `You are a quality control judge for travel souvenir products.
+Evaluate this generated ${prodType} design (strategy: ${stratName}).
+
+Score on 4 dimensions (each 0-25, total 100):
+1. composition: Is the layout intentional and well-balanced? Are elements arranged with purpose?
+2. artistry: Does it look like a designed product, not a raw photo collage? Is there artistic treatment?
+3. product_fit: Does it look like a real ${prodType}? Would you buy this in a gift shop?
+4. text_quality: Is text (if any) clean, readable, and well-placed?
+
+IMPORTANT: A design that simply places unmodified photos side-by-side with harsh cuts scores LOW on composition and artistry (max 10 each).
+
+Output ONLY JSON:
+{"composition":N,"artistry":N,"product_fit":N,"text_quality":N,"total":N,"verdict":"pass or fail","reason":"one sentence explaining the score"}`;
+
+      const result = await callAI("vision", {
+        systemPrompt: null,
+        parts: [
+          { inlineData: { mimeType: imageMime || "image/png", data: imageBase64 } },
+          { text: prompt }
+        ],
+        temperature: 0.3
+      });
+
+      const txt = (typeof result === "string" ? result : result?.text) || "";
+      const match = txt.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        return { score: parsed.total || 0, reason: parsed.reason || "", details: parsed };
+      }
+    } catch (e) {
+      console.warn("[SVN] Judge failed:", e.message);
+    }
+    return { score: 100, reason: "Judge unavailable, accepting by default" };
   }
 
   async function _genComposite(trip, ctx, photoResult, cultural, ds, moments, prodType) {
@@ -732,15 +779,34 @@ Each variant must offer something genuinely different.`;
           const [stratName, stratDir] = selectedStrats[vi];
           status(`Generating ${prodType} variant ${vi+1}/${selectedStrats.length}: ${stratName}`);
           try {
-            const img = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, vi + 1);
+            let img = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, vi + 1);
             if (img && img.base64) {
-              results.push({
-                type: prodType,
-                strategy: stratName,
-                base64: img.base64,
-                mime: img.mime || "image/png"
-              });
-              console.log("[SVN] Generated", prodType, stratName);
+              // Quality Judge
+              status(`Judging ${prodType} ${stratName}...`);
+              const judge = await _judgeImage(img.base64, img.mime, prodType, stratName);
+              const scoreStr = "Quality: " + judge.score + "/100";
+              console.log("[SVN]", scoreStr, judge.reason);
+
+              if (judge.score < 60) {
+                // Retry once with feedback
+                status(`${scoreStr} (low) — regenerating ${prodType} ${stratName}...`);
+                console.warn("[SVN] Rejected:", prodType, stratName, judge.reason);
+                try {
+                  const retryDir = stratDir + "\n\nCRITICAL FEEDBACK from quality review: Previous attempt scored " + judge.score + "/100. Reason: " + judge.reason + ". Fix this issue in the new version.";
+                  img = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, retryDir, vi + 1);
+                  if (img && img.base64) {
+                    const judge2 = await _judgeImage(img.base64, img.mime, prodType, stratName);
+                    status(`Retry quality: ${judge2.score}/100`);
+                  }
+                } catch(re) { console.warn("[SVN] Retry failed:", re.message); }
+              } else {
+                status(scoreStr);
+              }
+
+              if (img && img.base64) {
+                results.push({ type: prodType, strategy: stratName, base64: img.base64, mime: img.mime || "image/png" });
+                console.log("[SVN] Accepted", prodType, stratName);
+              }
             } else {
               console.warn("[SVN] No image returned for", prodType, stratName);
             }
@@ -796,6 +862,7 @@ Each variant must offer something genuinely different.`;
 
     // Expose individual agents for advanced use
     _buildContext,
+    _judgeImage,
     _curatePhotos,
     _culturalEnrich,
     _extractElements,
