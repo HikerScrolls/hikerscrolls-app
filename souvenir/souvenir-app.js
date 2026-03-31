@@ -434,12 +434,13 @@ function setupGenerate() {
     progressLog.innerHTML = ""; progressFill.style.width = "0%";
 
     const products = [...selectedProducts];
-    const totalSteps = 6 + products.length * variantsCount;
+    // 6 agents + per variant: generate + judge (+ possible retry + rejudge) + signature per product
+    const totalSteps = 6 + products.length * (variantsCount * 3 + 2);
     let step = 0;
 
     const onStatus = (msg) => {
       step++;
-      const pct = Math.min(100, Math.round(step / totalSteps * 100));
+      const pct = Math.min(99, Math.round(step / totalSteps * 100));
       progressFill.style.width = pct + "%";
       progressPct.textContent = pct + "%";
       const line = document.createElement("div");
@@ -459,8 +460,11 @@ function setupGenerate() {
     try {
       results = await SouvenirCore.generate(tripData, photoBase64Array, products, variantsCount, onStatus);
       progressFill.style.width = "100%"; progressPct.textContent = "100%";
-      onStatus("Done! " + results.length + " souvenirs generated.");
-      if (!hasOwnApiKey()) incrementUsage();
+      progressFill.style.width = "100%";
+      progressPct.textContent = "100%";
+      const doneLine = document.createElement("div");
+      doneLine.textContent = "Done! " + results.length + " souvenirs generated.";
+      progressLog.appendChild(doneLine);
       renderResults();
       updateGenerateBtn();
     } catch (e) {
