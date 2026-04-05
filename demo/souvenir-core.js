@@ -93,6 +93,23 @@ Pin: Mountain/peak silhouette across circle diameter, OR trail elevation profile
 Stamp: Botanical illustration style OR fine topographic engraving. Capture a specific natural detail.`;
 
   // ═══════════════════════════════════════════════════════════════════
+  // Artistic Lettering Styles — crafted letterforms, NOT default fonts
+  // The headline must feel drawn by an artist, not set in Helvetica.
+  // ═══════════════════════════════════════════════════════════════════
+  const LETTERING_STYLES = {
+    hand_lettered:        "Custom hand-drawn letters with personality and slight imperfections. Variable stroke weights, playful ligatures, subtle wobble. Think contemporary lettering artists (Jessica Hische, Lauren Hom), indie travel journals, hand-painted signage. NOT a font \u2014 drawn letter by letter.",
+    vintage_display_serif: "Bold high-contrast display serif, 1920s\u20131940s editorial elegance. Didone/Bodoni proportions, fine hairlines meeting thick stems, sometimes with decorative swash terminals. Think National Geographic masthead, vintage travel brochures, Vogue covers.",
+    deco_sans:            "Geometric Art Deco display sans \u2014 crisp angles, streamlined forms, perfectly circular O's, triangular A's. Cassandre travel posters, Paris Metro entrances, Chrysler Building signage, Broadway marquees.",
+    sign_painter:         "Traditional hand-painted sign aesthetic \u2014 confident brush strokes with drop shadow, outline fills, sometimes multi-color layered letters. American diner signs, barbershops, national park trail markers, vintage storefronts.",
+    western_wood_type:    "Victorian/western display wood type \u2014 slab serifs, extreme weight contrast, condensed compressed letters stacked in multiple sizes, ornamental flourishes and wood grain texture. Old west posters, carnival broadsides, frontier expedition prints.",
+    cartouche_script:     "Vintage map cartouche \u2014 flourished calligraphic script enclosed in a decorative frame (scrolls, ribbons, laurel). Reference: Tolkien's Middle-earth maps, 18th\u201319th century exploration journals, historical atlases.",
+    brush_lettering:      "Expressive brush stroke lettering with variable weight and wet-ink feel. East Asian calligraphy influence, contemporary brush hand. Strokes have direction, pressure, and rhythm. Good for Japan/China/Korea routes or energetic adventures.",
+    stencil_industrial:   "Bold stencil letters with visible gaps/bridges \u2014 military, industrial, travel crate aesthetic. Can have spray paint texture or clean cut. Good for adventure/expedition/urban explorer vibes.",
+    badge_monogram:       "Letters integrated into a monogram, crest, or shield \u2014 trip branded like a heraldic device. Letters interlock, stack, or nest inside a circular/shield frame. National Park emblem, college crest, boy scout badge.",
+    engraved_classical:   "Classical engraved inscription \u2014 Trajan column proportions, museum plaque, commemorative medal, currency engraving. Perfectly spaced capitals, restrained elegance. For formal/historical/pilgrimage trips."
+  };
+
+  // ═══════════════════════════════════════════════════════════════════
   // Quality framework (inspired by "complexity vs harmony" composition theory)
   //
   // Q = Harmony × f(Complexity), where f is an inverted-U function.
@@ -117,6 +134,7 @@ Stamp: Botanical illustration style OR fine topographic engraving. Capture a spe
     boundary_style_inconsistent: 8, // some edges sharp, others feathered — incoherent
     over_stacked_lost_subjects: 10, // too many layered elements, main subjects unreadable
     illegible_text:             12, // text stacked on busy regions, poor contrast
+    typography_too_plain:       10, // default system font look (Helvetica/Arial/Times dropped on image, no craft)
     visual_weight_unstable:      6, // heavy elements floating, light elements pinned down (anti-physics)
     complexity_too_low:          8, // almost empty, boring, no design happening (inverted-U left tail)
     complexity_too_high:         8  // chaotic clutter, no hierarchy (inverted-U right tail)
@@ -644,10 +662,21 @@ Color principles:
 - Secondary max 2 colors, harmonious
 - Accent for emphasis only
 
+Typography principle: The headline is a CRAFTED VISUAL ELEMENT, not a default font.
+Pick ONE lettering_style from this list that best fits the trip's mood and region:
+${Object.entries(LETTERING_STYLES).map(([k,v]) => "- " + k + ": " + v).join("\n")}
+
 Output ONLY strict JSON:
 {"visual_approach":"photo-driven or route-driven",
  "color_system":{"primary":"#hex","secondary":["#hex","#hex"],"text_on_primary":"#hex","accent":"#hex","rationale":"color logic"},
- "typography":{"headline_style":"serif/sans-serif/handwriting","body_style":"serif/sans-serif","required_text_elements":["location (English)","date","elevation or distance"],"suggested_headline":"English \u22648 words, poetic"},
+ "typography":{
+   "lettering_style":"EXACTLY one key from the list above (e.g., hand_lettered, deco_sans)",
+   "lettering_rationale":"why this style fits this specific trip \u2264 20 words",
+   "headline_treatment":"how the headline integrates with the artwork \u2014 banner, cartouche, overlay, decorative flourishes, texture \u2264 30 words",
+   "secondary_type_style":"smaller type style for date/distance labels \u2264 15 words",
+   "required_text_elements":["location","date","distance or elevation"],
+   "suggested_headline":"English \u22648 words, poetic"
+ },
  "hero_photo_id":"filename or null",
  "primary_motif":"core visual symbol",
  "secondary_motifs":["supporting symbols"],
@@ -665,7 +694,7 @@ Output ONLY strict JSON:
     const txt = result?.text || result || "";
     return _extractJson(txt) || {
       visual_approach:"photo-driven", color_system:{primary:"#2563eb",secondary:["#f59e0b"],text_on_primary:"#fff",accent:"#ef4444",rationale:"default"},
-      typography:{headline_style:"sans-serif",suggested_headline:ctx.trip_title||"Journey"}, primary_motif:"landscape", secondary_motifs:[], mood_descriptor:"adventure", product_focus:{}
+      typography:{lettering_style:"hand_lettered",lettering_rationale:"default fallback",headline_treatment:"integrated with illustration",secondary_type_style:"small caps",suggested_headline:ctx.trip_title||"Journey"}, primary_motif:"landscape", secondary_motifs:[], mood_descriptor:"adventure", product_focus:{}
     };
   }
 
@@ -721,6 +750,30 @@ Primary: ${cs.primary||""} (${cs.rationale||""})
 Secondary: ${(cs.secondary||[]).join(", ")} | Accent: ${cs.accent||""}
 Text color: ${cs.text_on_primary||"#fff"} | Motif: ${ds.primary_motif||""}
 Headline: "${ds.typography?.suggested_headline||""}"
+
+=== ARTISTIC LETTERING (CRITICAL \u2014 do NOT use default fonts) ===
+The headline is a CRAFTED VISUAL ELEMENT, not a default font dropped on the image.
+It must feel DRAWN BY AN ARTIST as part of the artwork \u2014 custom letterforms, decorative flourishes, texture, integration with the illustration.
+
+Chosen lettering style: "${ds.typography?.lettering_style || "hand_lettered"}"
+Style reference: ${LETTERING_STYLES[ds.typography?.lettering_style] || LETTERING_STYLES.hand_lettered}
+
+Headline treatment: ${ds.typography?.headline_treatment || "hand-drawn title integrated with the illustration"}
+Secondary type style: ${ds.typography?.secondary_type_style || "small caps, refined, subordinate"}
+
+LETTERING REQUIREMENTS:
+- Custom letterforms with personality \u2014 variable stroke weights, ligatures, swashes, or decorative terminals
+- Lettering can curve, arc, integrate with banners, cartouches, ribbons, or scenic elements
+- Match the chosen lettering style's historical/cultural reference
+- The headline should be a FOCAL POINT or a crafted accent, not an afterthought overlay
+- Secondary labels (date, distance) in a complementary but subordinate style
+
+HARD AVOID in typography:
+- Arial, Helvetica, Times New Roman, or any default system-font look
+- Plain centered uppercase with no character
+- "Photoshop text tool" aesthetic \u2014 flat, pasted, no integration
+- Generic "travel template" look
+- Lettering that contradicts the chosen style
 
 === PRODUCT FORMAT ===
 ${rule}
@@ -801,10 +854,14 @@ For this product, the target complexity is: ${criteria.complexity_target}
 4. product_fit (0-20)
    ${criteria.focus}
 
-5. text_typography (0-20)
-   Is text (if any) legible with strong contrast? Does it sit on a protected zone (scrim/panel/clean area)?
-   Typography quality: confident typefaces, consistent hierarchy, max 2 families, proper kerning?
-   If no text, score 15/20 by default (no text is not a failure for some products).
+5. text_typography (0-20) \u2014 legibility AND artistic craft
+   Two sub-checks, both matter:
+   (a) Legibility: strong contrast, sits on a protected zone (scrim/panel/clean area), readable at product scale.
+   (b) Artistic craft: Is the headline CRAFTED as a visual element, or is it a default font dropped on the image?
+       HIGH score (16\u201320): custom hand-lettering, vintage display type, decorative letterforms, cartouche/banner integration, brush strokes, sign-painter aesthetic, letterforms with personality and integration with the artwork.
+       MID score (10\u201315): well-chosen typeface but generic placement, clean but unremarkable.
+       LOW score (0\u20139): Arial/Helvetica/Times New Roman default look, plain centered uppercase, "Photoshop text tool" pasted on top, generic travel template feel.
+   If the design has NO text at all, score 12/20 by default (no text is acceptable but not rewarded).
 
 === PRODUCT-SPECIFIC FAIL CONDITIONS (deduct 5+ from product_fit per match) ===
 ${failList}
@@ -967,7 +1024,7 @@ Output ONLY strict JSON:
                   if ((d.style_coherence || 0) < 12) weak.push("style_coherence was " + (d.style_coherence || 0) + "/20 \u2014 unify rendering style across ALL elements (this is the #1 failure: do not mix photo + illustration + 3D)");
                   if ((d.stacking_quality || 0) < 12) weak.push("stacking_quality was " + (d.stacking_quality || 0) + "/20 \u2014 use natural transitions between overlapping elements (gradient/blend/shared palette), not harsh rectangular cuts; keep boundary treatment consistent");
                   if ((d.product_fit || 0) < 12) weak.push("product_fit was " + (d.product_fit || 0) + "/20 \u2014 make it look more convincingly like a real " + prodType);
-                  if ((d.text_typography || 0) < 12) weak.push("text_typography was " + (d.text_typography || 0) + "/20 \u2014 fix text legibility, contrast, and placement on a protected zone");
+                  if ((d.text_typography || 0) < 12) weak.push("text_typography was " + (d.text_typography || 0) + "/20 \u2014 the headline must be CRAFTED (custom hand-lettering, vintage display type, decorative letterforms integrated with the artwork), NOT a default system font dropped on top. Also fix legibility/contrast/placement on a protected zone");
 
                   const flagStr = (judge.flags || []).length
                     ? "\nFailure flags triggered (MUST fix):\n- " + judge.flags.join("\n- ")
