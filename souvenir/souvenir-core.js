@@ -28,7 +28,7 @@ const SouvenirCore = (() => {
   };
 
   const RULES = {
-    postcard: "148x100mm landscape, STRICT 3:2 aspect ratio, full-bleed (design fills edge to edge, no inner white border). Output canvas: pure #FFFFFF background OUTSIDE the postcard shape \u2014 NO table, hands, fabric, or mockup surface.\n\nCORE AESTHETIC: A REAL printed postcard you would actually mail. Warm matte paper feel, ink-on-paper finish. NOT glossy, NOT metallic, NOT 3D enamel, NOT plasticky, NOT digital-screen-looking. Reference aesthetics: WPA National Park posters, mid-century travel posters (Cassandre, Steinweiss), Kinfolk/Cereal magazine editorial, museum gift shop art postcards.\n\nTEXT LAYOUT (mandatory):\n- Headline (location OR poetic title): CONFIDENT display typeface \u2014 vintage serif, geometric sans, or refined hand-lettering. Large and unmissable. Anchored to top 20% OR bottom 20% \u2014 never floating mid-frame.\n- Date: small, subordinate, in a corner or tucked under the headline.\n- Optional micro-label: distance/elevation, small caps.\n- Max 2 typefaces total. No comic sans, no clip-art fonts, no random decorative scripts.\n- Text MUST sit on a protected zone \u2014 scrim, gradient, panel, or clean sky area. NEVER stacked over busy photo textures where it becomes illegible.\n\nHARD AVOID:\n- Raw photo collage with harsh rectangular cuts\n- Floating disconnected text elements\n- Clip-art borders, stock corner ornaments, shutterstock-watermark look\n- Multiple competing focal points fighting for attention\n- Muddy low-contrast color palettes\n- Over-saturated Instagram-filter look\n- Text that a 60-year-old cannot read at arm's length",
+    postcard: "148x100mm landscape, STRICT 3:2 aspect ratio, full-bleed (design fills edge to edge, no inner white border). Output canvas: pure #FFFFFF background OUTSIDE the postcard shape \u2014 NO table, hands, fabric, or mockup surface.\n\nRENDERING MODE (critical): By default, the postcard is ILLUSTRATED/PAINTED/PRINTED \u2014 NOT a photograph. The attached reference photos inform subject matter, composition, and color palette, but are NOT the final content. Every visual element must be re-rendered in the chosen artistic medium (watercolor, gouache, screenprint, woodcut, ink, mixed-media). EXCEPTION: only the editorial_photo strategy allows a photographic hero, and even then it must be heavily color-graded (duotone, tritone, or matched to the design palette).\n\nCORE AESTHETIC: A REAL printed postcard you would actually mail. Warm matte paper feel, ink-on-paper finish. NOT glossy, NOT metallic, NOT 3D enamel, NOT plasticky, NOT digital-screen-looking. Reference aesthetics: WPA National Park posters, mid-century travel posters (Cassandre, Steinweiss), Kinfolk/Cereal magazine editorial, museum gift shop art postcards, Charley Harper prints.\n\nTEXT LAYOUT (mandatory):\n- Headline (location OR poetic title): CONFIDENT display typeface \u2014 vintage serif, geometric sans, or refined hand-lettering. Large and unmissable. Anchored to top 20% OR bottom 20% \u2014 never floating mid-frame.\n- Date: small, subordinate, in a corner or tucked under the headline.\n- Optional micro-label: distance/elevation, small caps.\n- Max 2 typefaces total. No comic sans, no clip-art fonts, no random decorative scripts.\n- Text MUST sit on a protected zone \u2014 scrim, gradient, panel, or clean sky area. NEVER stacked over busy photo textures where it becomes illegible.\n\nHARD AVOID:\n- Raw unmodified photographs placed in panels or frames (unless strategy is editorial_photo)\n- Photo collage with harsh rectangular cuts and no artistic treatment\n- Floating disconnected text elements\n- Clip-art borders, stock corner ornaments, shutterstock-watermark look\n- Multiple competing focal points fighting for attention\n- Muddy low-contrast color palettes\n- Over-saturated Instagram-filter look\n- Text that a 60-year-old cannot read at arm's length",
     magnet: "70x50mm portrait, 300dpi. Full-bleed. 3D ENAMEL RELIEF: Multiple raised layers separated by polished metallic lines. Back layer recessed (sky/atmosphere), mid layer raised (landmarks), front layer highest (text band, fine details). Bottom: solid raised band, location name in white bold. The magnet must look like a physical object you can pick up and feel. Pure white background, no fabric/table surface.",
     sticker: "60x60mm, 300dpi. 4mm white die-cut stroke outline. Bold and readable at small scale. Location or short text at base. Clean design on pure white background, no mockup.",
     pin: "38mm circle, 400dpi (output as square, design inside circle). CLOISONNE ENAMEL: Fine metal wire defines all color boundaries (visible as raised lines). Enamel fills sit slightly recessed within metal walls. Polished border ring. Location arc text at bottom. Max 6 flat enamel colors. Must look like a jewel, not a printed sticker. Pure white background, no fabric/felt surface.",
@@ -44,11 +44,11 @@ const SouvenirCore = (() => {
       abstracted_essence: "Capture WHAT PLACES FEEL LIKE, not what they look like. Abstract key elements \u2014 shapes, colors, textures, light \u2014 into a design evoking emotional character rather than literal depiction."
     },
     postcard: {
-      panoramic_journey: "Full-bleed panoramic horizon stitched from the trip's key vistas. Scenes BLEED into each other via gradient transitions, shared sky color, or painterly washes \u2014 NEVER hard photo cuts. Shared golden-hour or dusk light unifies the whole frame. Bottom third: a thin horizontal type bar with the location name left-aligned and date right-aligned, separated by a hairline rule. The eye travels left to right like a traveler crossing the landscape.",
-      triptych_narrative: "Three vertical panels divided by thin 3mm white (paper) gutters. Panel 1 (left, ~40% width): PLACE \u2014 an establishing landscape or architectural shot. Panel 2 (center, ~35%): MOMENT \u2014 a human-scale detail, person, or scene. Panel 3 (right, ~25%): TEXTURE \u2014 a cultural motif, material, or pattern. A single unified type bar at the bottom spans all three panels carrying the headline and location. Color-grade all three to share one palette so they read as one object.",
-      illustrated_map: "The postcard IS a hand-drawn illustrated map, NOT a photo composite. Stylized terrain, hand-lettered place names, a confident ink route line connecting waypoints, tiny vignette illustrations at each stop (NOT pasted photos). Optional compass rose or scale bar. Title set in a vintage cartouche in the top-left corner. Limited palette: 4\u20135 inks max, plus subtle warm paper texture showing through. Think Tolkien map meets Lonely Planet illustrator.",
-      editorial_photo: "ONE dominant hero photo fills the entire card, color-graded to MATCH the design system palette (not the raw photo colors). Large confident typographic overlay \u2014 the headline IS the point, set in a display serif or elegant geometric sans, anchored either full-width at the bottom OR hard-left in a corner. A dark scrim, color gradient, or solid color block sits behind the text for legibility. Think Kinfolk magazine cover, not social media share card.",
-      layered_memory: "Multiple photos layered at varying opacity and scale \u2014 some sharp in the foreground, some ghosted into the paper texture like fading memory. Soft feathered edges, NO hard crops. One clean typographic anchor: the location name set confidently in a single spot (lower-left or lower-right), date as a subtle companion beneath. Warm nostalgic palette. Feels hand-assembled, artful, contemplative \u2014 not digital collage."
+      panoramic_journey: "MEDIUM: Gouache or watercolor panorama, painted in a single unified session. NOT stitched photographs. The entire horizon is ONE painting with loose bleeding edges between scene areas. Shared atmospheric wash (golden hour, morning mist, or dusk haze) unifies everything. Subjects are PAINTED, not photographed. Bottom third carries a thin horizontal type bar with location name left-aligned and date right-aligned, separated by a hairline rule. The eye travels left to right like a traveler crossing the painted landscape. Reference: WPA National Park watercolor posters, David Hockney panoramas.",
+      triptych_narrative: "MEDIUM: Screenprinted or silkscreen illustration, OR hand-painted gouache triptych. Three vertical panels divided by thin 3mm white (paper) gutters. CRITICAL: Each panel is a PAINTING/PRINT of the scene \u2014 NOT a photograph placed in a panel. All three panels must share: (a) the same palette (4\u20136 screen-print colors), (b) the same light direction, (c) the same brushwork/print texture, (d) the same stroke confidence \u2014 as if painted by ONE artist in ONE session. Panel 1 (left, ~40%): PLACE. Panel 2 (center, ~35%): MOMENT. Panel 3 (right, ~25%): DETAIL or TEXTURE. The three panels tell three views of ONE dream. Unified type bar at the bottom carries the headline in hand-lettered or custom type integrated with the illustration. Reference: Charley Harper prints, Stanley Donwood, Japanese ukiyo-e triptychs.",
+      illustrated_map: "MEDIUM: Hand-drawn ink and watercolor map. The postcard IS a stylized map, NOT a photo composite. Stylized terrain drawn in ink lines, hand-lettered place names, confident route line connecting waypoints, tiny vignette illustrations at each stop (small watercolor sketches, NEVER pasted photos). Optional compass rose or scale bar. Title set in a vintage cartouche in the top-left corner. Limited palette: 4\u20135 inks max, plus subtle warm paper texture showing through. Reference: Tolkien Middle-earth maps, Lonely Planet illustrated maps, vintage national park maps.",
+      editorial_photo: "THIS IS THE ONE STRATEGY WHERE A PHOTOGRAPHIC HERO IS ALLOWED. One dominant hero PHOTO fills the entire card, but heavily color-graded to MATCH the design system palette (not the raw photo colors) \u2014 duotone, tritone, bleached, warmed, or pushed into a unified grade. Large confident typographic overlay \u2014 the headline IS the point, set in a display serif or elegant geometric sans, anchored either full-width at the bottom OR hard-left in a corner. A dark scrim, color gradient, or solid color block sits behind the text for legibility. Think Kinfolk magazine cover, Cereal magazine, New York Times editorial travel feature. NOT a social media share card.",
+      layered_memory: "MEDIUM: Mixed-media collage \u2014 aged paper, hand-stamped elements, illustration mixed with heavily-processed image fragments. NOT raw photos. Every image fragment must be TREATED (aged, desaturated to near-monochrome with selective color, halftone-printed, or painted over). Soft feathered edges, no hard crops. One clean typographic anchor: the location name set confidently in one spot (lower-left or lower-right), date as a subtle companion beneath. Warm nostalgic palette. Feels hand-assembled from a travel journal. Reference: vintage scrapbooks, Wes Anderson title design, Peter Beard journals."
     },
     sticker: {
       merit_badge: "Circular/shield badge celebrating trip achievements. Central icon surrounded by smaller icons from other scenes. Decorative border. Patch aesthetic.",
@@ -125,9 +125,17 @@ Stamp: Botanical illustration style OR fine topographic engraving. Capture a spe
   // Failure flags deduct hard penalties on top of weighted score.
   // ═══════════════════════════════════════════════════════════════════
 
+  // Strategies that allow photographic content in the final output.
+  // Any strategy NOT in this set must produce an illustration/painting/print
+  // — raw photos in the output are a hard failure.
+  const PHOTO_ALLOWED_STRATEGIES = new Set([
+    "editorial_photo" // postcard: the one strategy built around a heavily-graded hero photo
+  ]);
+
   // Hard deductions for specific failure modes (applied AFTER weighted dimension score).
   const FAILURE_FLAG_PENALTIES = {
-    mixed_rendering_styles:     15, // photo pasted into illustration, or 3D element in flat design — #1 AI failure
+    raw_photos_in_design:       18, // design contains raw/unprocessed photos when strategy requires illustration (highest penalty)
+    mixed_rendering_styles:     15, // photo pasted into illustration, or 3D element in flat design
     subjects_blurred_together:  12, // overlap density too high, no clear individual subjects
     harsh_photo_cuts:           10, // rectangular photo boxes placed next to each other
     random_floating_elements:   10, // text or motifs with no visual anchor
@@ -758,9 +766,31 @@ DIVERSITY CHECK:
 - Tell THAT story, not the most photographed element.
 ` : "";
 
+    const photoAllowed = PHOTO_ALLOWED_STRATEGIES.has(stratName);
+    const ruleZero = photoAllowed
+      ? `\u2554\u2550\u2550 RULE ZERO \u2014 EDITORIAL PHOTO STRATEGY \u2550\u2550\u2557
+This strategy ("${stratName}") is the ONE exception where a photographic hero is allowed.
+Use ONE hero photo, but you MUST heavily color-grade it \u2014 duotone, tritone, bleached,
+warmed, or pushed into the design-system palette. A raw unmodified photo is still a failure.
+\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d`
+      : `\u2554\u2550\u2550 RULE ZERO \u2014 NO RAW PHOTOGRAPHS IN THE OUTPUT \u2550\u2550\u2557
+The final design MUST NOT contain raw photographic imagery. Every visual element
+must be RE-RENDERED as illustration, painting, watercolor, gouache, screenprint,
+woodcut, ink-and-wash, or mixed-media \u2014 following the strategy's chosen MEDIUM.
+
+The attached photos are REFERENCE ONLY \u2014 use them to understand subject identity,
+composition geometry, and dominant colors. They MUST NOT appear in the final output.
+
+If you find yourself placing a photo inside a frame/panel/box, STOP and redraw
+the scene in the chosen artistic medium instead. A photo with a title bar is
+NOT a designed postcard.
+\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d`;
+
     const prompt = `You are a senior travel souvenir designer. Create variant ${varNum}.
 
-Above are reference photos from this trip. They are REFERENCE MATERIAL to understand the place, subjects, and colors \u2014 NOT the final output. The final design must be RE-RENDERED in the chosen illustration/print style, never a raw photograph pasted into a layout.
+${ruleZero}
+
+Above are reference photos from this trip. They are REFERENCE MATERIAL to understand the place, subjects, and colors \u2014 NOT the final output. The final design must be RE-RENDERED in the chosen illustration/print style.
 
 === YOUR CREATIVE BRIEF: "${stratName}" ===
 ${stratDir}
@@ -868,9 +898,16 @@ Each variant must offer something genuinely different.`;
     const criteria = PRODUCT_JUDGE_CRITERIA[prodType] || PRODUCT_JUDGE_CRITERIA.postcard;
     const failList = criteria.fail_conditions.map((f, i) => `   ${i + 1}. ${f}`).join("\n");
     const flagList = Object.entries(FAILURE_FLAG_PENALTIES).map(([k, v]) => `   - ${k} (\u22121${v})`).join("\n");
+    const photoAllowed = PHOTO_ALLOWED_STRATEGIES.has(stratName);
+    const photoPolicy = photoAllowed
+      ? `This strategy ("${stratName}") ALLOWS a photographic hero, but the photo MUST be heavily color-graded (duotone, tritone, matched to the design palette) \u2014 a raw unmodified photo still fails. If you see a raw/unprocessed photo, flag raw_photos_in_design.`
+      : `This strategy ("${stratName}") does NOT allow raw photographs. The design must be illustration/painting/print (watercolor, gouache, screenprint, woodcut, ink, mixed-media). If you see a raw unmodified photograph anywhere in the output, flag raw_photos_in_design \u2014 this is the highest-severity failure for this strategy.`;
     try {
       const prompt = `You are a strict quality judge for travel souvenir products, trained in composition theory, visual design, and craft manufacturing.
 Evaluate this generated ${prodType} design (strategy: ${stratName}).
+
+=== PHOTO POLICY FOR THIS STRATEGY ===
+${photoPolicy}
 
 === QUALITY FRAMEWORK ===
 Good design = Harmony \u00D7 f(Complexity), where f is an inverted-U curve.
@@ -1078,7 +1115,7 @@ Output ONLY strict JSON:
                   const d = judge.details || {};
                   const weak = [];
                   if ((d.composition || 0) < 12) weak.push("composition was " + (d.composition || 0) + "/20 \u2014 improve layout balance, establish a clear focal point, guide the eye");
-                  if ((d.style_coherence || 0) < 12) weak.push("style_coherence was " + (d.style_coherence || 0) + "/20 \u2014 unify rendering style across ALL elements (this is the #1 failure: do not mix photo + illustration + 3D)");
+                  if ((d.style_coherence || 0) < 12) weak.push("style_coherence was " + (d.style_coherence || 0) + "/20 \u2014 unify rendering style across ALL elements (this is the #1 failure: do not mix photo + illustration + 3D). REMEMBER: unless the strategy is editorial_photo, DO NOT put raw photographs in the output \u2014 re-render every scene as illustration/painting/print");
                   if ((d.stacking_quality || 0) < 12) weak.push("stacking_quality was " + (d.stacking_quality || 0) + "/20 \u2014 use natural transitions between overlapping elements (gradient/blend/shared palette), not harsh rectangular cuts; keep boundary treatment consistent");
                   if ((d.product_fit || 0) < 12) weak.push("product_fit was " + (d.product_fit || 0) + "/20 \u2014 make it look more convincingly like a real " + prodType);
                   if ((d.text_typography || 0) < 12) weak.push("text_typography was " + (d.text_typography || 0) + "/20 \u2014 the headline must be CRAFTED (custom hand-lettering, vintage display type, decorative letterforms integrated with the artwork), NOT a default system font dropped on top. Also fix legibility/contrast/placement on a protected zone");
