@@ -702,41 +702,72 @@ Output ONLY strict JSON:
   // Agent 6: Image Generation
   // ═══════════════════════════════════════════════════════════════════
 
-  async function _genImage(trip, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, varNum) {
+  async function _genImage(trip, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, varNum, heroIdx) {
     const cs = ds.color_system || {};
     const rule = RULES[prodType] || "";
+    const dk = "design_" + (prodType === "magnet" ? "fridge_magnet" : prodType);
 
-    // Build scene inventory from all journey moments
-    const sceneInventory = moments.map((m,i) => {
-      const dk = "design_" + (prodType === "magnet" ? "fridge_magnet" : prodType);
-      return `  [${i+1}] ${m.location_name}
-     "${m.moment_caption}"
-     ${(m.defining_quality||"").slice(0,120)}
-     Emotion: ${m.emotional_note||""}
-     Design: ${(m[dk]||m.design_postcard||"").slice(0,150)}`;
-    }).join("\n");
+    // ── Variant hero selection ──
+    // If heroIdx is provided (non-null), this variant focuses on ONE specific moment.
+    // If heroIdx is null (e.g. signature composite), use all moments equally.
+    const hasHero = heroIdx != null && moments.length > 0;
+    const heroMoment = hasHero ? moments[heroIdx % moments.length] : null;
+    const otherMoments = hasHero ? moments.filter((_, i) => i !== (heroIdx % moments.length)) : moments;
+
+    // Build scene inventory
+    let sceneInventory;
+    if (hasHero && heroMoment) {
+      const h = heroMoment;
+      const supportingStr = otherMoments.slice(0, 3).map((m, i) =>
+        `  [supporting ${i + 1}] ${m.location_name} \u2014 ${(m.moment_caption || "").slice(0, 80)}`
+      ).join("\n");
+      sceneInventory =
+        `  [\u2B50 PRIMARY HERO \u2014 THIS variant is about THIS scene] ${h.location_name}\n` +
+        `     "${h.moment_caption}"\n` +
+        `     ${(h.defining_quality || "").slice(0, 140)}\n` +
+        `     Emotion: ${h.emotional_note || ""}\n` +
+        `     Design direction for ${prodType}: ${(h[dk] || h.design_postcard || "").slice(0, 180)}\n\n` +
+        `  Supporting scenes (may appear as subtle background context only, NOT as focal points):\n` +
+        (supportingStr || "  (none)");
+    } else {
+      sceneInventory = moments.map((m, i) =>
+        `  [${i + 1}] ${m.location_name}\n     "${m.moment_caption}"\n     ${(m.defining_quality || "").slice(0, 120)}\n     Emotion: ${m.emotional_note || ""}\n     Design: ${(m[dk] || m.design_postcard || "").slice(0, 150)}`
+      ).join("\n");
+    }
 
     // Cultural context string
     const cultStr = (cultural.locations||[]).map(l =>
       l.location_name + ": symbols=" + (l.visual_motifs||[]).join(",") + " arch=" + (l.architectural_features||[]).join(",") + " nature=" + (l.natural_features||[]).join(",") + " colors=" + (l.color_palette||[]).join(",")
     ).join("\n");
 
-    const prompt = `You are a senior travel souvenir designer. Create variant ${varNum} of 5.
+    const variantFocusSection = hasHero && heroMoment ? `
 
-Above are the traveler's OWN PHOTOS from this trip \u2014 they are your PRIMARY design material.
-Study each photo carefully. You may:
-- Use a single standout photo as the hero, artistically enhanced
-- Blend multiple photos with smooth transitions and artistic treatment
-- Incorporate local cultural elements, architectural motifs, and symbols discovered in research
-- Use the GPX route shape as a design element if available
-The photos should be CENTRAL to the design, enhanced with artistic style and cultural context.
+=== VARIANT FOCUS (MANDATORY for diversity across variants) ===
+This is variant ${varNum}. Each variant in the set MUST feature a DIFFERENT primary subject.
+DO NOT default to the most visually striking element across all variants (e.g. if there is a famous statue, sculpture, or landmark that appears in multiple photos, do not use it in every variant).
+
+PRIMARY SUBJECT for THIS variant: "${heroMoment.location_name}"
+  Caption: ${heroMoment.moment_caption}
+  Key elements: ${(heroMoment.photo_elements || []).join(", ") || "(see attached photo)"}
+
+This subject MUST occupy 50-70% of the visual weight and be the clear, unmistakable focal point.
+The other scenes listed as "supporting" may appear as subtle context (background texture, secondary motif, color palette influence) but MUST NOT compete with the primary subject.
+
+DIVERSITY CHECK:
+- If you feel tempted to include the most iconic landmark (sculpture/statue/monument) of this trip in every variant, STOP. This variant's story is about "${heroMoment.location_name}".
+- Tell THAT story, not the most photographed element.
+` : "";
+
+    const prompt = `You are a senior travel souvenir designer. Create variant ${varNum}.
+
+Above are reference photos from this trip. They are REFERENCE MATERIAL to understand the place, subjects, and colors \u2014 NOT the final output. The final design must be RE-RENDERED in the chosen illustration/print style, never a raw photograph pasted into a layout.
 
 === YOUR CREATIVE BRIEF: "${stratName}" ===
 ${stratDir}
 
 This is your PRIMARY CREATIVE DIRECTIVE. Follow its spirit, not just its letter.
-
-=== ALL SCENES AVAILABLE ===
+${variantFocusSection}
+=== SCENE INVENTORY ===
 ${sceneInventory}
 
 === GEOGRAPHIC + CULTURAL CONTEXT ===
@@ -800,11 +831,29 @@ COMPOSITION QUALITY:
 Museum gift shop standard. Worth keeping 20 years.
 Each variant must offer something genuinely different.`;
 
-    // Attach reference photos
+    // Attach reference photos.
+    // IMPORTANT: For hero-focused variants, attach ONLY the hero's photo + 1 supporting photo.
+    // This prevents the image model from defaulting to the most visually striking element
+    // across all photos (e.g. a prominent statue that would otherwise appear in every variant).
+    // For signature composite (heroIdx=null), attach all top photos to encourage the "full story" collage.
     const parts = [];
     const top = photoResult.topPhotos || [];
-    for (let i = 0; i < Math.min(top.length, 5); i++) {
-      if (top[i].b64) parts.push({ inlineData: { mimeType: top[i].mime || "image/jpeg", data: top[i].b64 } });
+    if (hasHero && heroMoment) {
+      // Find the photo matching the hero moment's location
+      const heroPhoto = top.find(p => p.loc === heroMoment.photo_loc) || top[0];
+      if (heroPhoto && heroPhoto.b64) {
+        parts.push({ inlineData: { mimeType: heroPhoto.mime || "image/jpeg", data: heroPhoto.b64 } });
+      }
+      // Add 1 supporting photo from a DIFFERENT location for color/context reference only
+      const supportingPhoto = top.find(p => p !== heroPhoto && p.loc !== heroMoment.photo_loc);
+      if (supportingPhoto && supportingPhoto.b64) {
+        parts.push({ inlineData: { mimeType: supportingPhoto.mime || "image/jpeg", data: supportingPhoto.b64 } });
+      }
+    } else {
+      // Composite or no-hero path: use all top photos
+      for (let i = 0; i < Math.min(top.length, 5); i++) {
+        if (top[i].b64) parts.push({ inlineData: { mimeType: top[i].mime || "image/jpeg", data: top[i].b64 } });
+      }
     }
     parts.push({ text: prompt });
 
@@ -938,7 +987,8 @@ Output ONLY strict JSON:
       name: "full_collage_signature",
       directive: "This is the SIGNATURE PIECE \u2014 the one design that captures everything. Use ALL provided scenes. Pack in as much of the trip as possible while maintaining visual coherence. Every scene should earn its place. The result should reward close looking \u2014 new details emerge on each viewing. This is the keeper, the centrepiece, the souvenir that tells the complete story of the trip."
     };
-    return await _genImage(trip, ctx, photoResult, cultural, ds, moments, prodType, strategy.name, strategy.directive, 0);
+    // heroIdx=null tells _genImage to use ALL scenes equally (full story mode)
+    return await _genImage(trip, ctx, photoResult, cultural, ds, moments, prodType, strategy.name, strategy.directive, 0, null);
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -994,17 +1044,24 @@ Output ONLY strict JSON:
       status("Agent 6/6: Generating souvenir images...");
       const results = [];
 
-      for (const prodType of products) {
+      for (let pIdx = 0; pIdx < products.length; pIdx++) {
+        const prodType = products[pIdx];
         const fusionStrategies = FUSIONS[prodType] || {};
         const stratEntries = Object.entries(fusionStrategies);
         const selectedStrats = stratEntries.slice(0, numVariants);
+        const numMoments = Math.max(1, moments.length);
 
         // Generate each variant
         for (let vi = 0; vi < selectedStrats.length; vi++) {
           const [stratName, stratDir] = selectedStrats[vi];
-          status(`Generating ${prodType} variant ${vi+1}/${selectedStrats.length}: ${stratName}`);
+          // Rotate hero moment across variants AND across products so the same scene
+          // doesn't always fall on the same variant index. This ensures visual diversity
+          // across the full result set (e.g. bull in variant 1 of postcard but not variant 1 of magnet).
+          const heroIdx = (pIdx * 7 + vi * 3) % numMoments;
+          const heroName = moments[heroIdx]?.location_name || "scene " + (heroIdx + 1);
+          status(`Generating ${prodType} variant ${vi+1}/${selectedStrats.length}: ${stratName} (hero: ${heroName})`);
           try {
-            let img = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, vi + 1);
+            let img = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, vi + 1, heroIdx);
             if (img && img.base64) {
               // Quality Judge
               status(`Judging ${prodType} ${stratName}...`);
@@ -1043,7 +1100,7 @@ Output ONLY strict JSON:
                     flagStr + issueStr + weakStr +
                     "\n\nGenerate a NEW version that specifically addresses these problems. Do NOT repeat the same mistakes. Focus especially on unified style across all elements.";
 
-                  const retryImg = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, retryDir, vi + 1);
+                  const retryImg = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, retryDir, vi + 1, heroIdx);
                   if (retryImg && retryImg.base64) {
                     const judge2 = await _judgeImage(retryImg.base64, retryImg.mime, prodType, stratName);
                     status(`Retry quality: ${judge2.score}/100`);
@@ -1102,7 +1159,7 @@ Output ONLY strict JSON:
         }
 
         // Pause between product types
-        if (products.indexOf(prodType) < products.length - 1) {
+        if (pIdx < products.length - 1) {
           await new Promise(r => setTimeout(r, 2000));
         }
       }
