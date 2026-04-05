@@ -28,7 +28,7 @@ const SouvenirCore = (() => {
   };
 
   const RULES = {
-    postcard: "148x100mm landscape, 300dpi. NO white border \u2014 design fills edge to edge. Paper texture feel, NOT metallic or enamel. Think real printed postcard: warm matte finish, natural ink colors, hand-illustrated or photographic style. Include headline, location name, date. The result should look like a postcard you buy at a museum gift shop, not a metal plate. Pure white background behind the card only.",
+    postcard: "148x100mm landscape, STRICT 3:2 aspect ratio, full-bleed (design fills edge to edge, no inner white border). Output canvas: pure #FFFFFF background OUTSIDE the postcard shape \u2014 NO table, hands, fabric, or mockup surface.\n\nCORE AESTHETIC: A REAL printed postcard you would actually mail. Warm matte paper feel, ink-on-paper finish. NOT glossy, NOT metallic, NOT 3D enamel, NOT plasticky, NOT digital-screen-looking. Reference aesthetics: WPA National Park posters, mid-century travel posters (Cassandre, Steinweiss), Kinfolk/Cereal magazine editorial, museum gift shop art postcards.\n\nTEXT LAYOUT (mandatory):\n- Headline (location OR poetic title): CONFIDENT display typeface \u2014 vintage serif, geometric sans, or refined hand-lettering. Large and unmissable. Anchored to top 20% OR bottom 20% \u2014 never floating mid-frame.\n- Date: small, subordinate, in a corner or tucked under the headline.\n- Optional micro-label: distance/elevation, small caps.\n- Max 2 typefaces total. No comic sans, no clip-art fonts, no random decorative scripts.\n- Text MUST sit on a protected zone \u2014 scrim, gradient, panel, or clean sky area. NEVER stacked over busy photo textures where it becomes illegible.\n\nHARD AVOID:\n- Raw photo collage with harsh rectangular cuts\n- Floating disconnected text elements\n- Clip-art borders, stock corner ornaments, shutterstock-watermark look\n- Multiple competing focal points fighting for attention\n- Muddy low-contrast color palettes\n- Over-saturated Instagram-filter look\n- Text that a 60-year-old cannot read at arm's length",
     magnet: "70x50mm portrait, 300dpi. Full-bleed. 3D ENAMEL RELIEF: Multiple raised layers separated by polished metallic lines. Back layer recessed (sky/atmosphere), mid layer raised (landmarks), front layer highest (text band, fine details). Bottom: solid raised band, location name in white bold. The magnet must look like a physical object you can pick up and feel. Pure white background, no fabric/table surface.",
     sticker: "60x60mm, 300dpi. 4mm white die-cut stroke outline. Bold and readable at small scale. Location or short text at base. Clean design on pure white background, no mockup.",
     pin: "38mm circle, 400dpi (output as square, design inside circle). CLOISONNE ENAMEL: Fine metal wire defines all color boundaries (visible as raised lines). Enamel fills sit slightly recessed within metal walls. Polished border ring. Location arc text at bottom. Max 6 flat enamel colors. Must look like a jewel, not a printed sticker. Pure white background, no fabric/felt surface.",
@@ -44,11 +44,11 @@ const SouvenirCore = (() => {
       abstracted_essence: "Capture WHAT PLACES FEEL LIKE, not what they look like. Abstract key elements \u2014 shapes, colors, textures, light \u2014 into a design evoking emotional character rather than literal depiction."
     },
     postcard: {
-      panoramic_journey: "Wide panoramic composition showing multiple scenes as if from a single vantage point. Scenes bleed into each other at edges. Text spanning full width at bottom.",
-      triptych_narrative: "Three panels: PLACE (establishing shot), MOMENT (human-scale scene), DETAIL (texture/cultural element). You choose which photos fill each role.",
-      illustrated_map: "Stylized illustrated map with vignette illustrations at each location. Drawn routes connect them. The map IS the postcard.",
-      editorial_photo: "Magazine editorial aesthetic. One strong photo dominates, color-graded with design palette. Bold typographic overlay. Clean, contemporary.",
-      layered_memory: "Multiple photos layered at varying opacity \u2014 some sharp, some ghosted. Layering creates depth and time passing. Location and date as anchor."
+      panoramic_journey: "Full-bleed panoramic horizon stitched from the trip's key vistas. Scenes BLEED into each other via gradient transitions, shared sky color, or painterly washes \u2014 NEVER hard photo cuts. Shared golden-hour or dusk light unifies the whole frame. Bottom third: a thin horizontal type bar with the location name left-aligned and date right-aligned, separated by a hairline rule. The eye travels left to right like a traveler crossing the landscape.",
+      triptych_narrative: "Three vertical panels divided by thin 3mm white (paper) gutters. Panel 1 (left, ~40% width): PLACE \u2014 an establishing landscape or architectural shot. Panel 2 (center, ~35%): MOMENT \u2014 a human-scale detail, person, or scene. Panel 3 (right, ~25%): TEXTURE \u2014 a cultural motif, material, or pattern. A single unified type bar at the bottom spans all three panels carrying the headline and location. Color-grade all three to share one palette so they read as one object.",
+      illustrated_map: "The postcard IS a hand-drawn illustrated map, NOT a photo composite. Stylized terrain, hand-lettered place names, a confident ink route line connecting waypoints, tiny vignette illustrations at each stop (NOT pasted photos). Optional compass rose or scale bar. Title set in a vintage cartouche in the top-left corner. Limited palette: 4\u20135 inks max, plus subtle warm paper texture showing through. Think Tolkien map meets Lonely Planet illustrator.",
+      editorial_photo: "ONE dominant hero photo fills the entire card, color-graded to MATCH the design system palette (not the raw photo colors). Large confident typographic overlay \u2014 the headline IS the point, set in a display serif or elegant geometric sans, anchored either full-width at the bottom OR hard-left in a corner. A dark scrim, color gradient, or solid color block sits behind the text for legibility. Think Kinfolk magazine cover, not social media share card.",
+      layered_memory: "Multiple photos layered at varying opacity and scale \u2014 some sharp in the foreground, some ghosted into the paper texture like fading memory. Soft feathered edges, NO hard crops. One clean typographic anchor: the location name set confidently in a single spot (lower-left or lower-right), date as a subtle companion beneath. Warm nostalgic palette. Feels hand-assembled, artful, contemplative \u2014 not digital collage."
     },
     sticker: {
       merit_badge: "Circular/shield badge celebrating trip achievements. Central icon surrounded by smaller icons from other scenes. Decorative border. Patch aesthetic.",
@@ -91,6 +91,64 @@ Postcard: Wide panoramic landscape. Let the terrain breathe \u2014 generous sky,
 Sticker: Topographic contour lines as graphic element, OR bold mountain silhouette. Clean, outdoorsy aesthetic. Earth tones.
 Pin: Mountain/peak silhouette across circle diameter, OR trail elevation profile. Summit marker. Clean and iconic.
 Stamp: Botanical illustration style OR fine topographic engraving. Capture a specific natural detail.`;
+
+  // Per-product judge criteria: focus checks, fail conditions, dimension weights.
+  // Weights sum to 4.0 so (a*wa + b*wb + c*wc + d*wd) gives a 0-100 weighted score.
+  const PRODUCT_JUDGE_CRITERIA = {
+    postcard: {
+      focus: "Does this look like a REAL printed postcard you could mail? Paper/ink feel, NOT metallic/3D/enamel. Correct 3:2 landscape aspect. Text must be legible with strong contrast, sitting on a protected zone (scrim, sky, or panel). Typography is confident and intentional, not floating random elements.",
+      fail_conditions: [
+        "metallic, enamel, or 3D relief finish (wrong product \u2014 this is flat paper)",
+        "raw photo with no design treatment or artistic grading",
+        "text stacked over busy photo regions without scrim or panel (illegible)",
+        "clip-art borders, stock frame ornaments, or shutterstock-watermark aesthetic",
+        "wrong aspect ratio (not 3:2 landscape)",
+        "multiple competing focal points with no clear hierarchy",
+        "floating disconnected text in the middle of the frame"
+      ],
+      weight: { composition: 1.1, artistry: 1.1, product_fit: 1.0, text_quality: 0.8 }
+    },
+    magnet: {
+      focus: "Does this look like a 3D enamel fridge magnet? Visible raised layers, metallic dividers between color fields, physical depth you can feel. Photo content should be STYLIZED into enamel, not pasted flat.",
+      fail_conditions: [
+        "flat print with no 3D relief or layering",
+        "no metallic dividers between color zones",
+        "photo-realistic texture instead of stylized enamel",
+        "looks like a sticker or postcard, not a magnet"
+      ],
+      weight: { composition: 0.9, artistry: 1.1, product_fit: 1.4, text_quality: 0.6 }
+    },
+    sticker: {
+      focus: "Does this look like a die-cut sticker? Bold simplified shapes, clean die-cut outline, flat graphic colors, readable at small scale.",
+      fail_conditions: [
+        "photo-realistic rendering (stickers must be simplified/graphic)",
+        "too much fine detail for sticker scale",
+        "missing the die-cut shape outline",
+        "muddy or too many colors"
+      ],
+      weight: { composition: 1.0, artistry: 1.2, product_fit: 1.3, text_quality: 0.5 }
+    },
+    pin: {
+      focus: "Does this look like a cloisonne enamel pin? Visible metal wire boundaries between color fills, jewel-like enamel depth, limited color palette, refined craftsmanship.",
+      fail_conditions: [
+        "no visible metal boundary lines between color zones",
+        "more than 6 flat colors (cloisonne requires restraint)",
+        "flat print aesthetic instead of enamel depth",
+        "shape is not circular (unless strategy explicitly says otherwise)"
+      ],
+      weight: { composition: 0.9, artistry: 1.2, product_fit: 1.5, text_quality: 0.4 }
+    },
+    stamp: {
+      focus: "Does this look like a commemorative postage stamp? Perforated edge visible or implied, engraving/crosshatch line work, scale-appropriate fine detail, classic print aesthetic.",
+      fail_conditions: [
+        "no perforated edge",
+        "photographic rendering instead of engraved/crosshatched",
+        "missing 'COMMEMORATIVE' or similar marking",
+        "detail too coarse for stamp scale"
+      ],
+      weight: { composition: 0.9, artistry: 1.2, product_fit: 1.4, text_quality: 0.5 }
+    }
+  };
 
   const URBAN_DESIGN_LANGUAGE = `DESIGN LANGUAGE FOR URBAN ROUTES:
 Focus on: architecture, street life, cultural energy, city texture.
@@ -672,20 +730,34 @@ Each variant must offer something genuinely different.`;
   // Quality Judge — evaluates generated souvenir image
   // ═══════════════════════════════════════════════════════════════════
   async function _judgeImage(imageBase64, imageMime, prodType, stratName) {
+    const criteria = PRODUCT_JUDGE_CRITERIA[prodType] || PRODUCT_JUDGE_CRITERIA.postcard;
+    const failList = criteria.fail_conditions.map((f, i) => `   ${i + 1}. ${f}`).join("\n");
     try {
-      const prompt = `You are a quality control judge for travel souvenir products.
+      const prompt = `You are a strict quality control judge for travel souvenir products.
 Evaluate this generated ${prodType} design (strategy: ${stratName}).
 
-Score on 4 dimensions (each 0-25, total 100):
-1. composition: Is the layout intentional and well-balanced? Are elements arranged with purpose?
-2. artistry: Does it look like a designed product, not a raw photo collage? Is there artistic treatment?
-3. product_fit: Does it look like a real ${prodType}? Would you buy this in a gift shop?
-4. text_quality: Is text (if any) clean, readable, and well-placed?
+Score on 4 dimensions, each 0-25:
+1. composition (0-25): Is the layout intentional, balanced, with clear visual hierarchy and purposeful element placement?
+2. artistry (0-25): Does it look like a DESIGNED product, not a raw photo collage? Strong artistic treatment, color grading, unified style?
+3. product_fit (0-25): ${criteria.focus}
+4. text_quality (0-25): Is text (if any) legible, well-placed, with strong contrast against its background? Typography consistent and professional?
 
-IMPORTANT: A design that simply places unmodified photos side-by-side with harsh cuts scores LOW on composition and artistry (max 10 each).
+=== AUTOMATIC LOW SCORES ===
+Score HARSHLY (max 8/25 on composition and artistry) if the design:
+- Places unmodified photos side-by-side with harsh rectangular cuts
+- Has text floating randomly in the middle with no design anchor
+- Has text stacked on busy photo regions with no scrim/panel (illegible)
+- Feels like a template with photos dropped in
+
+=== PRODUCT-SPECIFIC FAIL CONDITIONS ===
+Deduct 5+ points from product_fit for each fail condition present:
+${failList}
+
+=== ISSUE REPORTING ===
+List up to 3 SPECIFIC issues found (empty array if clean). Each issue: short actionable phrase the generator can fix on retry.
 
 Output ONLY JSON:
-{"composition":N,"artistry":N,"product_fit":N,"text_quality":N,"total":N,"verdict":"pass or fail","reason":"one sentence explaining the score"}`;
+{"composition":N,"artistry":N,"product_fit":N,"text_quality":N,"verdict":"pass|fail","reason":"one sentence summary","issues":["issue1","issue2"]}`;
 
       const result = await callAI("vision", {
         systemPrompt: null,
@@ -700,12 +772,26 @@ Output ONLY JSON:
       const match = txt.match(/\{[\s\S]*\}/);
       if (match) {
         const parsed = JSON.parse(match[0]);
-        return { score: parsed.total || 0, reason: parsed.reason || "", details: parsed };
+        const w = criteria.weight;
+        const sumW = w.composition + w.artistry + w.product_fit + w.text_quality;
+        // Weighted score normalized to 0-100
+        const weighted = Math.round(
+          ((parsed.composition || 0) * w.composition +
+            (parsed.artistry || 0) * w.artistry +
+            (parsed.product_fit || 0) * w.product_fit +
+            (parsed.text_quality || 0) * w.text_quality) / sumW * 4
+        );
+        return {
+          score: weighted,
+          reason: parsed.reason || "",
+          issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+          details: parsed
+        };
       }
     } catch (e) {
       console.warn("[SVN] Judge failed:", e.message);
     }
-    return { score: 100, reason: "Judge unavailable, accepting by default" };
+    return { score: 100, reason: "Judge unavailable, accepting by default", issues: [], details: {} };
   }
 
   async function _genComposite(trip, ctx, photoResult, cultural, ds, moments, prodType) {
@@ -783,20 +869,42 @@ Output ONLY JSON:
             if (img && img.base64) {
               // Quality Judge
               status(`Judging ${prodType} ${stratName}...`);
-              const judge = await _judgeImage(img.base64, img.mime, prodType, stratName);
+              let judge = await _judgeImage(img.base64, img.mime, prodType, stratName);
               const scoreStr = "Quality: " + judge.score + "/100";
-              console.log("[SVN]", scoreStr, judge.reason);
+              console.log("[SVN]", scoreStr, judge.reason, judge.issues);
 
-              if (judge.score < 60) {
-                // Retry once with feedback
-                status(`${scoreStr} (low) — regenerating ${prodType} ${stratName}...`);
+              // Retry threshold: 65/100 weighted. Keep whichever version scores higher.
+              if (judge.score < 65) {
+                status(`${scoreStr} (low) \u2014 regenerating ${prodType} ${stratName}...`);
                 console.warn("[SVN] Rejected:", prodType, stratName, judge.reason);
                 try {
-                  const retryDir = stratDir + "\n\nCRITICAL FEEDBACK from quality review: Previous attempt scored " + judge.score + "/100. Reason: " + judge.reason + ". Fix this issue in the new version.";
-                  img = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, retryDir, vi + 1);
-                  if (img && img.base64) {
-                    const judge2 = await _judgeImage(img.base64, img.mime, prodType, stratName);
+                  // Build structured feedback: per-dimension weak points + specific issues
+                  const d = judge.details || {};
+                  const weak = [];
+                  if ((d.composition || 0) < 13) weak.push("composition was " + (d.composition || 0) + "/25 \u2014 improve layout intentionality and visual hierarchy");
+                  if ((d.artistry || 0) < 13) weak.push("artistry was " + (d.artistry || 0) + "/25 \u2014 apply stronger design treatment, avoid raw photo collage");
+                  if ((d.product_fit || 0) < 13) weak.push("product_fit was " + (d.product_fit || 0) + "/25 \u2014 make it look more convincingly like a real " + prodType);
+                  if ((d.text_quality || 0) < 13) weak.push("text_quality was " + (d.text_quality || 0) + "/25 \u2014 fix text legibility, contrast, and placement");
+                  const issueStr = (judge.issues || []).length ? "\nSpecific issues to fix:\n- " + judge.issues.join("\n- ") : "";
+                  const weakStr = weak.length ? "\nWeak dimensions:\n- " + weak.join("\n- ") : "";
+                  const retryDir = stratDir +
+                    "\n\n=== CRITICAL QUALITY FEEDBACK FROM JUDGE ===\n" +
+                    "Previous attempt scored " + judge.score + "/100.\n" +
+                    "Judge summary: " + judge.reason +
+                    issueStr + weakStr +
+                    "\n\nGenerate a NEW version that specifically addresses these problems. Do NOT repeat the same mistakes.";
+                  const retryImg = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, retryDir, vi + 1);
+                  if (retryImg && retryImg.base64) {
+                    const judge2 = await _judgeImage(retryImg.base64, retryImg.mime, prodType, stratName);
                     status(`Retry quality: ${judge2.score}/100`);
+                    // Keep whichever scored higher
+                    if (judge2.score > judge.score) {
+                      img = retryImg;
+                      judge = judge2;
+                      console.log("[SVN] Retry improved:", prodType, stratName, judge2.score);
+                    } else {
+                      console.log("[SVN] Retry did not improve, keeping original:", judge.score, "vs", judge2.score);
+                    }
                   }
                 } catch(re) { console.warn("[SVN] Retry failed:", re.message); }
               } else {
@@ -804,8 +912,8 @@ Output ONLY JSON:
               }
 
               if (img && img.base64) {
-                results.push({ type: prodType, strategy: stratName, base64: img.base64, mime: img.mime || "image/png" });
-                console.log("[SVN] Accepted", prodType, stratName);
+                results.push({ type: prodType, strategy: stratName, base64: img.base64, mime: img.mime || "image/png", score: judge.score });
+                console.log("[SVN] Accepted", prodType, stratName, "score:", judge.score);
               }
             } else {
               console.warn("[SVN] No image returned for", prodType, stratName);
