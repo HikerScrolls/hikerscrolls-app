@@ -92,8 +92,36 @@ Sticker: Topographic contour lines as graphic element, OR bold mountain silhouet
 Pin: Mountain/peak silhouette across circle diameter, OR trail elevation profile. Summit marker. Clean and iconic.
 Stamp: Botanical illustration style OR fine topographic engraving. Capture a specific natural detail.`;
 
-  // Per-product judge criteria: focus checks, fail conditions, dimension weights.
-  // Weights sum to 4.0 so (a*wa + b*wb + c*wc + d*wd) gives a 0-100 weighted score.
+  // ═══════════════════════════════════════════════════════════════════
+  // Quality framework (inspired by "complexity vs harmony" composition theory)
+  //
+  // Q = Harmony × f(Complexity), where f is an inverted-U function.
+  // Low complexity → boring/empty. High complexity → chaotic. Mid + organized = best.
+  //
+  // 5 scoring dimensions, each 0-20, max raw = 100:
+  //   1. composition         — layout balance, hierarchy, focal point, rule of thirds
+  //   2. style_coherence     — UNIFIED rendering style (no photo+illustration+3D mix — #1 AI failure)
+  //   3. stacking_quality    — layered elements: boundary consistency, depth clarity, natural transitions
+  //   4. product_fit         — believability as the specific product type
+  //   5. text_typography     — legibility, contrast, placement, typographic craft
+  //
+  // Failure flags deduct hard penalties on top of weighted score.
+  // ═══════════════════════════════════════════════════════════════════
+
+  // Hard deductions for specific failure modes (applied AFTER weighted dimension score).
+  const FAILURE_FLAG_PENALTIES = {
+    mixed_rendering_styles:     15, // photo pasted into illustration, or 3D element in flat design — #1 AI failure
+    subjects_blurred_together:  12, // overlap density too high, no clear individual subjects
+    harsh_photo_cuts:           10, // rectangular photo boxes placed next to each other
+    random_floating_elements:   10, // text or motifs with no visual anchor
+    boundary_style_inconsistent: 8, // some edges sharp, others feathered — incoherent
+    over_stacked_lost_subjects: 10, // too many layered elements, main subjects unreadable
+    illegible_text:             12, // text stacked on busy regions, poor contrast
+    visual_weight_unstable:      6, // heavy elements floating, light elements pinned down (anti-physics)
+    complexity_too_low:          8, // almost empty, boring, no design happening (inverted-U left tail)
+    complexity_too_high:         8  // chaotic clutter, no hierarchy (inverted-U right tail)
+  };
+
   const PRODUCT_JUDGE_CRITERIA = {
     postcard: {
       focus: "Does this look like a REAL printed postcard you could mail? Paper/ink feel, NOT metallic/3D/enamel. Correct 3:2 landscape aspect. Text must be legible with strong contrast, sitting on a protected zone (scrim, sky, or panel). Typography is confident and intentional, not floating random elements.",
@@ -106,7 +134,8 @@ Stamp: Botanical illustration style OR fine topographic engraving. Capture a spe
         "multiple competing focal points with no clear hierarchy",
         "floating disconnected text in the middle of the frame"
       ],
-      weight: { composition: 1.1, artistry: 1.1, product_fit: 1.0, text_quality: 0.8 }
+      complexity_target: "medium-high", // postcard can carry rich detail
+      weight: { composition: 1.1, style_coherence: 1.2, stacking_quality: 1.0, product_fit: 0.9, text_typography: 0.8 }
     },
     magnet: {
       focus: "Does this look like a 3D enamel fridge magnet? Visible raised layers, metallic dividers between color fields, physical depth you can feel. Photo content should be STYLIZED into enamel, not pasted flat.",
@@ -116,7 +145,8 @@ Stamp: Botanical illustration style OR fine topographic engraving. Capture a spe
         "photo-realistic texture instead of stylized enamel",
         "looks like a sticker or postcard, not a magnet"
       ],
-      weight: { composition: 0.9, artistry: 1.1, product_fit: 1.4, text_quality: 0.6 }
+      complexity_target: "medium",
+      weight: { composition: 0.9, style_coherence: 1.2, stacking_quality: 1.2, product_fit: 1.3, text_typography: 0.4 }
     },
     sticker: {
       focus: "Does this look like a die-cut sticker? Bold simplified shapes, clean die-cut outline, flat graphic colors, readable at small scale.",
@@ -126,7 +156,8 @@ Stamp: Botanical illustration style OR fine topographic engraving. Capture a spe
         "missing the die-cut shape outline",
         "muddy or too many colors"
       ],
-      weight: { composition: 1.0, artistry: 1.2, product_fit: 1.3, text_quality: 0.5 }
+      complexity_target: "low", // stickers need restraint at small scale
+      weight: { composition: 1.0, style_coherence: 1.3, stacking_quality: 0.8, product_fit: 1.3, text_typography: 0.6 }
     },
     pin: {
       focus: "Does this look like a cloisonne enamel pin? Visible metal wire boundaries between color fills, jewel-like enamel depth, limited color palette, refined craftsmanship.",
@@ -136,7 +167,8 @@ Stamp: Botanical illustration style OR fine topographic engraving. Capture a spe
         "flat print aesthetic instead of enamel depth",
         "shape is not circular (unless strategy explicitly says otherwise)"
       ],
-      weight: { composition: 0.9, artistry: 1.2, product_fit: 1.5, text_quality: 0.4 }
+      complexity_target: "low-medium",
+      weight: { composition: 0.9, style_coherence: 1.3, stacking_quality: 1.0, product_fit: 1.5, text_typography: 0.3 }
     },
     stamp: {
       focus: "Does this look like a commemorative postage stamp? Perforated edge visible or implied, engraving/crosshatch line work, scale-appropriate fine detail, classic print aesthetic.",
@@ -146,7 +178,8 @@ Stamp: Botanical illustration style OR fine topographic engraving. Capture a spe
         "missing 'COMMEMORATIVE' or similar marking",
         "detail too coarse for stamp scale"
       ],
-      weight: { composition: 0.9, artistry: 1.2, product_fit: 1.4, text_quality: 0.5 }
+      complexity_target: "low", // stamp scale demands restraint
+      weight: { composition: 0.9, style_coherence: 1.3, stacking_quality: 0.9, product_fit: 1.4, text_typography: 0.5 }
     }
   };
 
@@ -732,32 +765,69 @@ Each variant must offer something genuinely different.`;
   async function _judgeImage(imageBase64, imageMime, prodType, stratName) {
     const criteria = PRODUCT_JUDGE_CRITERIA[prodType] || PRODUCT_JUDGE_CRITERIA.postcard;
     const failList = criteria.fail_conditions.map((f, i) => `   ${i + 1}. ${f}`).join("\n");
+    const flagList = Object.entries(FAILURE_FLAG_PENALTIES).map(([k, v]) => `   - ${k} (\u22121${v})`).join("\n");
     try {
-      const prompt = `You are a strict quality control judge for travel souvenir products.
+      const prompt = `You are a strict quality judge for travel souvenir products, trained in composition theory, visual design, and craft manufacturing.
 Evaluate this generated ${prodType} design (strategy: ${stratName}).
 
-Score on 4 dimensions, each 0-25:
-1. composition (0-25): Is the layout intentional, balanced, with clear visual hierarchy and purposeful element placement?
-2. artistry (0-25): Does it look like a DESIGNED product, not a raw photo collage? Strong artistic treatment, color grading, unified style?
-3. product_fit (0-25): ${criteria.focus}
-4. text_quality (0-25): Is text (if any) legible, well-placed, with strong contrast against its background? Typography consistent and professional?
+=== QUALITY FRAMEWORK ===
+Good design = Harmony \u00D7 f(Complexity), where f is an inverted-U curve.
+- LOW complexity (empty/boring) \u2192 bad
+- HIGH complexity (chaotic/cluttered) \u2192 bad
+- MEDIUM complexity organized with harmony \u2192 best
+For this product, the target complexity is: ${criteria.complexity_target}
 
-=== AUTOMATIC LOW SCORES ===
-Score HARSHLY (max 8/25 on composition and artistry) if the design:
-- Places unmodified photos side-by-side with harsh rectangular cuts
-- Has text floating randomly in the middle with no design anchor
-- Has text stacked on busy photo regions with no scrim/panel (illegible)
-- Feels like a template with photos dropped in
+=== 5 SCORING DIMENSIONS (each 0-20) ===
 
-=== PRODUCT-SPECIFIC FAIL CONDITIONS ===
-Deduct 5+ points from product_fit for each fail condition present:
+1. composition (0-20)
+   Layout balance, visual hierarchy, clear focal point, rule-of-thirds or golden-ratio awareness.
+   Is the eye guided on a deliberate path? Is there a dominant subject?
+   Complexity on target (not empty, not chaotic)?
+
+2. style_coherence (0-20) \u2014 #1 AI failure mode, judge ruthlessly
+   Are ALL elements rendered in ONE unified visual style?
+   FAIL if the design mixes: photo + illustration + 3D render + flat vector in the same frame.
+   FAIL if boundary treatments are inconsistent: some edges sharp, others feathered, others glowing.
+   FAIL if lighting direction differs between elements (one lit from left, another from above).
+   PASS if every element feels like it came from the same artist's hand in the same session.
+
+3. stacking_quality (0-20) \u2014 layering and overlap harmony
+   If elements overlap: are transitions natural (gradients, blends, shared palette) or harsh (rectangular photo cuts)?
+   Are depth layers clear: foreground / middle / background distinguishable?
+   Do heavy elements sit at the bottom/anchor points (physical visual weight)?
+   Are partially-occluded subjects still readable in their remaining visible area?
+   If NO overlapping elements, judge based on element separation and negative-space handling.
+
+4. product_fit (0-20)
+   ${criteria.focus}
+
+5. text_typography (0-20)
+   Is text (if any) legible with strong contrast? Does it sit on a protected zone (scrim/panel/clean area)?
+   Typography quality: confident typefaces, consistent hierarchy, max 2 families, proper kerning?
+   If no text, score 15/20 by default (no text is not a failure for some products).
+
+=== PRODUCT-SPECIFIC FAIL CONDITIONS (deduct 5+ from product_fit per match) ===
 ${failList}
 
-=== ISSUE REPORTING ===
-List up to 3 SPECIFIC issues found (empty array if clean). Each issue: short actionable phrase the generator can fix on retry.
+=== FAILURE FLAGS (automatic hard penalties applied on top) ===
+Check for these specific failure modes. Include ALL that apply in the "flags" array:
+${flagList}
 
-Output ONLY JSON:
-{"composition":N,"artistry":N,"product_fit":N,"text_quality":N,"verdict":"pass|fail","reason":"one sentence summary","issues":["issue1","issue2"]}`;
+=== OUTPUT ===
+List up to 3 specific issues the generator can fix on retry (empty array if clean).
+Each issue: short actionable phrase, not vague.
+
+Output ONLY strict JSON:
+{
+  "composition": N,
+  "style_coherence": N,
+  "stacking_quality": N,
+  "product_fit": N,
+  "text_typography": N,
+  "flags": ["flag_name_from_list_above", ...],
+  "issues": ["specific actionable issue", ...],
+  "reason": "one sentence overall verdict"
+}`;
 
       const result = await callAI("vision", {
         systemPrompt: null,
@@ -773,16 +843,28 @@ Output ONLY JSON:
       if (match) {
         const parsed = JSON.parse(match[0]);
         const w = criteria.weight;
-        const sumW = w.composition + w.artistry + w.product_fit + w.text_quality;
-        // Weighted score normalized to 0-100
-        const weighted = Math.round(
+        const sumW = w.composition + w.style_coherence + w.stacking_quality + w.product_fit + w.text_typography;
+        // Weighted dimension score, normalized to 0-100.
+        // Each dim is 0-20, so max raw = 20 * sumW. Scale: raw / sumW * 5 → 0-100.
+        const weightedRaw =
           ((parsed.composition || 0) * w.composition +
-            (parsed.artistry || 0) * w.artistry +
+            (parsed.style_coherence || 0) * w.style_coherence +
+            (parsed.stacking_quality || 0) * w.stacking_quality +
             (parsed.product_fit || 0) * w.product_fit +
-            (parsed.text_quality || 0) * w.text_quality) / sumW * 4
-        );
+            (parsed.text_typography || 0) * w.text_typography);
+        const weighted = weightedRaw / sumW * 5;
+
+        // Apply failure flag penalties (hard deductions)
+        const flags = Array.isArray(parsed.flags) ? parsed.flags.filter(f => FAILURE_FLAG_PENALTIES[f] != null) : [];
+        const flagPenalty = flags.reduce((sum, f) => sum + FAILURE_FLAG_PENALTIES[f], 0);
+
+        const finalScore = Math.max(0, Math.round(weighted - flagPenalty));
+
         return {
-          score: weighted,
+          score: finalScore,
+          weighted_score: Math.round(weighted),
+          flag_penalty: flagPenalty,
+          flags,
           reason: parsed.reason || "",
           issues: Array.isArray(parsed.issues) ? parsed.issues : [],
           details: parsed
@@ -791,7 +873,7 @@ Output ONLY JSON:
     } catch (e) {
       console.warn("[SVN] Judge failed:", e.message);
     }
-    return { score: 100, reason: "Judge unavailable, accepting by default", issues: [], details: {} };
+    return { score: 100, weighted_score: 100, flag_penalty: 0, flags: [], reason: "Judge unavailable, accepting by default", issues: [], details: {} };
   }
 
   async function _genComposite(trip, ctx, photoResult, cultural, ds, moments, prodType) {
@@ -870,29 +952,40 @@ Output ONLY JSON:
               // Quality Judge
               status(`Judging ${prodType} ${stratName}...`);
               let judge = await _judgeImage(img.base64, img.mime, prodType, stratName);
-              const scoreStr = "Quality: " + judge.score + "/100";
-              console.log("[SVN]", scoreStr, judge.reason, judge.issues);
+              const scoreStr = "Quality: " + judge.score + "/100" + (judge.flag_penalty ? " (\u2212" + judge.flag_penalty + " flags)" : "");
+              console.log("[SVN]", scoreStr, "reason:", judge.reason, "flags:", judge.flags, "issues:", judge.issues);
 
-              // Retry threshold: 65/100 weighted. Keep whichever version scores higher.
+              // Retry threshold: 65/100 final score. Keep whichever version scores higher.
               if (judge.score < 65) {
                 status(`${scoreStr} (low) \u2014 regenerating ${prodType} ${stratName}...`);
                 console.warn("[SVN] Rejected:", prodType, stratName, judge.reason);
                 try {
-                  // Build structured feedback: per-dimension weak points + specific issues
+                  // Build structured feedback: per-dimension weak points + flags + specific issues
                   const d = judge.details || {};
                   const weak = [];
-                  if ((d.composition || 0) < 13) weak.push("composition was " + (d.composition || 0) + "/25 \u2014 improve layout intentionality and visual hierarchy");
-                  if ((d.artistry || 0) < 13) weak.push("artistry was " + (d.artistry || 0) + "/25 \u2014 apply stronger design treatment, avoid raw photo collage");
-                  if ((d.product_fit || 0) < 13) weak.push("product_fit was " + (d.product_fit || 0) + "/25 \u2014 make it look more convincingly like a real " + prodType);
-                  if ((d.text_quality || 0) < 13) weak.push("text_quality was " + (d.text_quality || 0) + "/25 \u2014 fix text legibility, contrast, and placement");
-                  const issueStr = (judge.issues || []).length ? "\nSpecific issues to fix:\n- " + judge.issues.join("\n- ") : "";
-                  const weakStr = weak.length ? "\nWeak dimensions:\n- " + weak.join("\n- ") : "";
+                  if ((d.composition || 0) < 12) weak.push("composition was " + (d.composition || 0) + "/20 \u2014 improve layout balance, establish a clear focal point, guide the eye");
+                  if ((d.style_coherence || 0) < 12) weak.push("style_coherence was " + (d.style_coherence || 0) + "/20 \u2014 unify rendering style across ALL elements (this is the #1 failure: do not mix photo + illustration + 3D)");
+                  if ((d.stacking_quality || 0) < 12) weak.push("stacking_quality was " + (d.stacking_quality || 0) + "/20 \u2014 use natural transitions between overlapping elements (gradient/blend/shared palette), not harsh rectangular cuts; keep boundary treatment consistent");
+                  if ((d.product_fit || 0) < 12) weak.push("product_fit was " + (d.product_fit || 0) + "/20 \u2014 make it look more convincingly like a real " + prodType);
+                  if ((d.text_typography || 0) < 12) weak.push("text_typography was " + (d.text_typography || 0) + "/20 \u2014 fix text legibility, contrast, and placement on a protected zone");
+
+                  const flagStr = (judge.flags || []).length
+                    ? "\nFailure flags triggered (MUST fix):\n- " + judge.flags.join("\n- ")
+                    : "";
+                  const issueStr = (judge.issues || []).length
+                    ? "\nSpecific issues to fix:\n- " + judge.issues.join("\n- ")
+                    : "";
+                  const weakStr = weak.length
+                    ? "\nWeak dimensions:\n- " + weak.join("\n- ")
+                    : "";
+
                   const retryDir = stratDir +
                     "\n\n=== CRITICAL QUALITY FEEDBACK FROM JUDGE ===\n" +
-                    "Previous attempt scored " + judge.score + "/100.\n" +
+                    "Previous attempt scored " + judge.score + "/100 (weighted " + judge.weighted_score + " \u2212 " + judge.flag_penalty + " flag penalty).\n" +
                     "Judge summary: " + judge.reason +
-                    issueStr + weakStr +
-                    "\n\nGenerate a NEW version that specifically addresses these problems. Do NOT repeat the same mistakes.";
+                    flagStr + issueStr + weakStr +
+                    "\n\nGenerate a NEW version that specifically addresses these problems. Do NOT repeat the same mistakes. Focus especially on unified style across all elements.";
+
                   const retryImg = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, retryDir, vi + 1);
                   if (retryImg && retryImg.base64) {
                     const judge2 = await _judgeImage(retryImg.base64, retryImg.mime, prodType, stratName);
@@ -912,7 +1005,16 @@ Output ONLY JSON:
               }
 
               if (img && img.base64) {
-                results.push({ type: prodType, strategy: stratName, base64: img.base64, mime: img.mime || "image/png", score: judge.score });
+                results.push({
+                  type: prodType,
+                  strategy: stratName,
+                  base64: img.base64,
+                  mime: img.mime || "image/png",
+                  score: judge.score,
+                  weighted_score: judge.weighted_score,
+                  flags: judge.flags,
+                  details: judge.details
+                });
                 console.log("[SVN] Accepted", prodType, stratName, "score:", judge.score);
               }
             } else {
