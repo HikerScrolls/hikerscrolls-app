@@ -675,45 +675,132 @@ Output ONLY JSON:
   // Agent 2d: Assign heroes per product (deterministic, 0 API calls)
   // ═══════════════════════════════════════════════════════════════════
 
-  function _assignHeroes(classifiedResult, elementSets, selectedProducts) {
+  // How many elements each fusion strategy should feature.
+  // "single" = 1 dominant element. "blend" = 2-3 merged. "full" = use all available.
+  const STRATEGY_ELEMENT_COUNT = {
+    // Postcard
+    panoramic_journey: "blend",   // 2-3 scenes merged in panorama
+    triptych_narrative: "blend",  // 3 scenes flowing together
+    illustrated_map: "full",      // all locations on the map
+    editorial_photo: "single",    // 1 hero photo dominates
+    layered_memory: "blend",      // 2-3 layered fragments
+    // Magnet
+    full_collage: "full",
+    hero_atmosphere: "single",
+    cultural_fusion: "blend",
+    journey_narrative: "blend",
+    abstracted_essence: "single",
+    // Sticker
+    merit_badge: "blend",
+    skyline_fusion: "full",
+    cultural_pattern: "single",
+    bold_hero: "single",
+    icon_cluster: "full",
+    // Pin
+    panoramic_skyline: "full",
+    jewel_detail: "single",
+    cultural_symbol: "single",
+    scene_fusion: "blend",
+    map_pin: "single",
+    // Stamp
+    engraved_portrait: "single",
+    panoramic_miniature: "blend",
+    cultural_symbol: "single",
+    atmospheric_scene: "single",
+    data_portrait: "single",
+    // Composites
+    full_collage_signature: "full",
+    signature_composite: "full"
+  };
+
+  /**
+   * Assign hero element(s) per variant — each (product × strategy) gets a unique combination.
+   * Returns: { [prodType]: { [stratName]: { photos, elements, category, mode } } }
+   *
+   * mode: "single" | "blend" | "full"
+   *   single: 1 photo/element dominates (50-70% visual weight)
+   *   blend:  2-3 photos/elements merged with transitions
+   *   full:   all available elements used (collage/map style)
+   */
+  function _assignHeroes(classifiedResult, elementSets, selectedProducts, fusionStrategiesMap) {
     const assignments = {};
-    const usedPhotos = new Set();
+    // Build a flat pool of all unique photos sorted by quality
+    const pool = classifiedResult.allClassified
+      ? [...classifiedResult.allClassified].sort((a, b) => b.quality_score - a.quality_score)
+      : classifiedResult.topPhotos || [];
 
-    // Sort products by priority (lower picks first)
-    const sorted = [...selectedProducts].sort((a, b) =>
-      (PRODUCT_HERO_MAP[a]?.priority || 99) - (PRODUCT_HERO_MAP[b]?.priority || 99)
-    );
+    // Track which photo was used as PRIMARY across all variants to maximize diversity
+    const primaryUsageCount = new Map(); // photo._idx → count used as primary
 
-    for (const prodType of sorted) {
-      const map = PRODUCT_HERO_MAP[prodType];
-      if (!map) continue;
+    for (const prodType of selectedProducts) {
+      assignments[prodType] = {};
+      const stratEntries = Object.entries(fusionStrategiesMap[prodType] || {});
+      const preferredCat = PRODUCT_HERO_MAP[prodType]?.primary || "LANDSCAPE";
+      const fallbackCat = PRODUCT_HERO_MAP[prodType]?.fallback || "ATMOSPHERE";
 
-      let photo = null, category = null;
+      for (let si = 0; si < stratEntries.length; si++) {
+        const [stratName] = stratEntries[si];
+        const mode = STRATEGY_ELEMENT_COUNT[stratName] || "blend";
 
-      // Try primary category, then fallback
-      for (const cat of [map.primary, map.fallback]) {
-        const candidates = classifiedResult.byCategory[cat] || [];
-        // Prefer signature-matched photos in this category
-        const sigMatch = candidates.find(p => !usedPhotos.has(p._idx) && p.signature_match);
-        const available = sigMatch || candidates.find(p => !usedPhotos.has(p._idx));
-        if (available) { photo = available; category = cat; break; }
+        if (mode === "full") {
+          // Full mode: use all top photos, no single hero
+          assignments[prodType][stratName] = {
+            photos: pool.slice(0, 5),
+            elements: elementSets,
+            category: "ALL",
+            mode: "full",
+            primaryPhoto: null
+          };
+          console.log("[SVN] Assign:", prodType, stratName, "→ FULL (all elements)");
+          continue;
+        }
+
+        // For single/blend: pick the LEAST-used photo that fits this product's preferred category
+        let primary = null, primaryCat = null;
+
+        // Candidates from preferred category, sorted by (usage_count ASC, category_score DESC)
+        for (const cat of [preferredCat, fallbackCat, ...PHOTO_CATEGORIES]) {
+          const candidates = (classifiedResult.byCategory[cat] || [])
+            .map(p => ({ p, used: primaryUsageCount.get(p._idx) || 0 }))
+            .sort((a, b) => a.used - b.used || (b.p.category_scores[cat] || 0) - (a.p.category_scores[cat] || 0));
+          if (candidates.length) {
+            // For the same product, try to pick a different primary than previous variants
+            const existingPrimaries = Object.values(assignments[prodType]).map(a => a.primaryPhoto?._idx).filter(x => x != null);
+            const fresh = candidates.find(c => !existingPrimaries.includes(c.p._idx));
+            const pick = fresh || candidates[0];
+            primary = pick.p;
+            primaryCat = cat;
+            break;
+          }
+        }
+
+        if (!primary) { primary = pool[0]; primaryCat = primary?.category || "LANDSCAPE"; }
+        primaryUsageCount.set(primary._idx, (primaryUsageCount.get(primary._idx) || 0) + 1);
+
+        if (mode === "single") {
+          assignments[prodType][stratName] = {
+            photos: [primary],
+            elements: elementSets[primaryCat] || elementSets[primary.category] || null,
+            category: primaryCat,
+            mode: "single",
+            primaryPhoto: primary
+          };
+          console.log("[SVN] Assign:", prodType, stratName, "→ SINGLE:", primary.loc, `(${primaryCat})`);
+        } else {
+          // Blend: primary + 1-2 supporting from DIFFERENT categories
+          const supporting = pool
+            .filter(p => p._idx !== primary._idx && p.category !== primaryCat)
+            .slice(0, 2);
+          assignments[prodType][stratName] = {
+            photos: [primary, ...supporting],
+            elements: elementSets,
+            category: primaryCat,
+            mode: "blend",
+            primaryPhoto: primary
+          };
+          console.log("[SVN] Assign:", prodType, stratName, "→ BLEND:", primary.loc, "+", supporting.map(s => s.loc).join(", "));
+        }
       }
-
-      // Last resort: best available from any category
-      if (!photo) {
-        photo = classifiedResult.topPhotos.find(p => !usedPhotos.has(p._idx))
-          || classifiedResult.topPhotos[0];
-        category = photo?.category || "LANDSCAPE";
-      }
-
-      if (photo) usedPhotos.add(photo._idx);
-
-      assignments[prodType] = {
-        photo,
-        elements: elementSets[category] || elementSets[photo?.category] || null,
-        category
-      };
-      console.log("[SVN] Hero assigned:", prodType, "→", photo?.loc, `(${category})`, photo?.signature_match ? "[SIG]" : "");
     }
     return assignments;
   }
@@ -944,11 +1031,13 @@ Output ONLY strict JSON:
     const dk = "design_" + (prodType === "magnet" ? "fridge_magnet" : prodType);
 
     // ── Variant hero selection ──
-    // heroAssignment = {photo, elements, category} or null for composite.
-    const hasHero = heroAssignment && heroAssignment.photo && moments.length > 0;
+    // heroAssignment = {photos[], elements, category, mode, primaryPhoto} or null for composite.
+    const mode = heroAssignment?.mode || "full";
+    const primaryPhoto = heroAssignment?.primaryPhoto || null;
+    const hasHero = primaryPhoto && moments.length > 0 && mode !== "full";
     // Find the moment that matches the assigned hero photo's location
     const heroMoment = hasHero
-      ? (moments.find(m => m.photo_loc === heroAssignment.photo.loc || m.location_name === heroAssignment.photo.loc) || moments[0])
+      ? (moments.find(m => m.photo_loc === primaryPhoto.loc || m.location_name === primaryPhoto.loc) || moments[0])
       : null;
     const otherMoments = hasHero ? moments.filter(m => m !== heroMoment) : moments;
 
@@ -979,27 +1068,46 @@ Output ONLY strict JSON:
     ).join("\n");
 
     const heroCategory = heroAssignment?.category || "";
-    const heroElementInfo = heroAssignment?.elements
-      ? `\nHero element: ${heroAssignment.elements.element_name || ""} (${heroAssignment.elements.element_type || ""})\n  ${heroAssignment.elements.description || ""}`
+    const heroElSet = typeof heroAssignment?.elements === "object" && !Array.isArray(heroAssignment?.elements) && heroAssignment?.elements?.element_name
+      ? heroAssignment.elements
+      : (heroAssignment?.elements?.[heroCategory] || null);
+    const heroElementInfo = heroElSet
+      ? `\nHero element: ${heroElSet.element_name || ""} (${heroElSet.element_type || ""})\n  ${heroElSet.description || ""}`
       : "";
-    const variantFocusSection = hasHero && heroMoment ? `
 
-=== HERO ASSIGNMENT (from ${heroCategory} category) ===
-This product (${prodType}) has been assigned a ${heroCategory} hero.
-The hero was selected because ${heroCategory} photos work best for ${prodType} products.
+    let variantFocusSection = "";
+    if (mode === "single" && heroMoment) {
+      variantFocusSection = `
+=== ELEMENT FOCUS: SINGLE HERO ===
+This variant features ONE dominant subject: "${heroMoment.location_name}" (${heroCategory} category).
 ${heroElementInfo}
-
-PRIMARY SUBJECT for THIS product: "${heroMoment.location_name}"
   Caption: ${heroMoment.moment_caption}
-  Key elements: ${(heroMoment.photo_elements || []).join(", ") || "(see attached photo)"}
-  Distinctive feature: ${heroAssignment.photo?.distinctive_feature || ""}
+  Distinctive feature: ${primaryPhoto?.distinctive_feature || ""}
 
-This subject MUST occupy 50-70% of the visual weight and be the clear, unmistakable focal point.
-Other scenes appear as subtle supporting context only — they MUST NOT compete with the hero.
+This subject MUST occupy 50-70% of the visual weight. It is the clear, unmistakable focal point.
+Other scenes may appear as subtle atmosphere only — they MUST NOT compete.
+`;
+    } else if (mode === "blend" && heroMoment) {
+      const blendPhotos = heroAssignment?.photos || [];
+      const blendNames = blendPhotos.map(p => p.loc || p.title).join(", ");
+      variantFocusSection = `
+=== ELEMENT FOCUS: BLEND (${blendPhotos.length} elements) ===
+Primary subject: "${heroMoment.location_name}" (${heroCategory}) — 40-50% visual weight.
+${heroElementInfo}
+Blended with: ${blendNames}
 
-IMPORTANT: Other product types in this batch have been assigned DIFFERENT heroes from different categories.
-Your job is to tell the story of "${heroMoment.location_name}" for this ${prodType}. Do not substitute a different subject.
-` : "";
+Merge these elements with SMOOTH TRANSITIONS (gradient, shared atmosphere, overlapping silhouettes).
+The primary subject leads the eye, but supporting elements enrich the composition.
+All elements must share a unified color palette and rendering style.
+`;
+    } else if (mode === "full") {
+      variantFocusSection = `
+=== ELEMENT FOCUS: FULL COLLAGE ===
+Use ALL available scenes from this trip. Every location earns its place in the composition.
+Arrange them in a visually coherent layout — they should feel like parts of ONE story, not separate photos.
+The overall composition should have a clear visual flow (left-to-right, center-outward, or layered depth).
+`;
+    }
 
     const photoAllowed = PHOTO_ALLOWED_STRATEGIES.has(stratName);
     const ruleZero = photoAllowed
@@ -1096,23 +1204,23 @@ COMPOSITION QUALITY:
 Museum gift shop standard. Worth keeping 20 years.
 Each variant must offer something genuinely different.`;
 
-    // Attach reference photos based on hero assignment.
-    // Hero-focused: attach the assigned hero photo + 1 supporting photo from a DIFFERENT category.
-    // Composite (heroAssignment=null): attach all top photos for the "full story" collage.
+    // Attach reference photos based on assignment mode.
     const parts = [];
     const top = photoResult.topPhotos || [];
-    if (hasHero && heroAssignment?.photo) {
-      const hp = heroAssignment.photo;
-      if (hp.b64) {
-        parts.push({ inlineData: { mimeType: hp.mime || "image/jpeg", data: hp.b64 } });
-      }
-      // Add 1 supporting photo from a DIFFERENT category for context
-      const supportingPhoto = top.find(p => p !== hp && p.category !== heroAssignment.category);
-      if (supportingPhoto && supportingPhoto.b64) {
-        parts.push({ inlineData: { mimeType: supportingPhoto.mime || "image/jpeg", data: supportingPhoto.b64 } });
+    const assignedPhotos = heroAssignment?.photos || [];
+
+    if (mode === "single" && assignedPhotos.length > 0) {
+      // Single mode: attach hero photo + 1 supporting from different category
+      if (assignedPhotos[0]?.b64) parts.push({ inlineData: { mimeType: assignedPhotos[0].mime || "image/jpeg", data: assignedPhotos[0].b64 } });
+      const support = top.find(p => p._idx !== assignedPhotos[0]?._idx && p.category !== heroCategory);
+      if (support?.b64) parts.push({ inlineData: { mimeType: support.mime || "image/jpeg", data: support.b64 } });
+    } else if (mode === "blend" && assignedPhotos.length > 0) {
+      // Blend mode: attach all assigned photos (primary + supporting)
+      for (const p of assignedPhotos) {
+        if (p?.b64) parts.push({ inlineData: { mimeType: p.mime || "image/jpeg", data: p.b64 } });
       }
     } else {
-      // Composite path: use all top photos
+      // Full mode or no assignment: attach all top photos
       for (let i = 0; i < Math.min(top.length, 5); i++) {
         if (top[i].b64) parts.push({ inlineData: { mimeType: top[i].mime || "image/jpeg", data: top[i].b64 } });
       }
@@ -1302,8 +1410,8 @@ Output ONLY strict JSON:
       status("Agent 4/8: Extracting visual elements per category...");
       const elementSets = await _extractMultiElements(photoResult, ctx, cultural, status);
 
-      // ── Agent 5: Assign Heroes per product (deterministic, 0 API calls) ──
-      const heroMap = _assignHeroes(photoResult, elementSets, products);
+      // ── Agent 5: Assign Heroes per variant (deterministic, 0 API calls) ──
+      const heroMap = _assignHeroes(photoResult, elementSets, products, FUSIONS);
 
       // ── Agent 6: Journey Moments ──
       status("Agent 6/8: Building design briefs...");
@@ -1324,14 +1432,15 @@ Output ONLY strict JSON:
         const fusionStrategies = FUSIONS[prodType] || {};
         const stratEntries = Object.entries(fusionStrategies);
         const selectedStrats = stratEntries.slice(0, numVariants);
-        const assignment = heroMap[prodType];
+        const prodAssignments = heroMap[prodType] || {};
 
-        // Generate each variant — same hero for all variants of this product.
-        // Variant diversity comes from the STRATEGY (fusion style), not hero rotation.
+        // Generate each variant — each gets its OWN hero assignment (different elements, different mode).
         for (let vi = 0; vi < selectedStrats.length; vi++) {
           const [stratName, stratDir] = selectedStrats[vi];
-          const heroName = assignment?.photo?.loc || "composite";
-          status(`Generating ${prodType} variant ${vi+1}/${selectedStrats.length}: ${stratName} (hero: ${heroName} [${assignment?.category}])`);
+          const assignment = prodAssignments[stratName] || null;
+          const heroName = assignment?.primaryPhoto?.loc || "full collage";
+          const assignMode = assignment?.mode || "full";
+          status(`Generating ${prodType} variant ${vi+1}/${selectedStrats.length}: ${stratName} [${assignMode}] (hero: ${heroName})`);
           try {
             let img = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, vi + 1, assignment);
             if (img && img.base64) {
