@@ -132,25 +132,18 @@ Stamp: Botanical illustration style OR fine topographic engraving. Capture a spe
     art_nouveau:          "Flowing organic Art Nouveau letterforms \u2014 whiplash curves, floral tendrils growing from letter stems, Mucha-poster elegance. For Paris, Prague, Barcelona, Vienna. Letters are living, growing things."
   };
 
-  // Cultural hints for lettering selection \u2014 the AI should pick styles
-  // that resonate with the trip's cultural context, not randomly.
+  // Principle for lettering selection — no hardcoded mapping.
+  // AI reasons from the cultural research data to pick the right style.
   const CULTURE_LETTERING_HINTS = `
-IMPORTANT: Choose the lettering style based on the CULTURAL CONTEXT of the trip location.
-The typography should feel like it BELONGS to the place. Examples:
-- Miami, LA, Brooklyn, Berlin \u2192 graffiti_street or neon_retro or tropical_script
-- Tokyo, Kyoto, Osaka \u2192 ukiyo_e or brush_lettering
-- Paris, Prague, Vienna, Barcelona \u2192 art_nouveau or deco_sans
-- Morocco, Istanbul, Dubai \u2192 arabic_geometric
-- Iceland, Norway, Scotland \u2192 nordic_rune
-- Italian coast, Greek islands, Mediterranean \u2192 hand_lettered or sign_painter
-- National parks, mountain trails, wilderness \u2192 western_wood_type or badge_monogram or sign_painter
-- London, NYC classic, Chicago \u2192 vintage_display_serif or deco_sans
-- Historical/pilgrimage routes \u2192 engraved_classical or cartouche_script
-- Beach/surf/tropical destinations \u2192 tropical_script or hand_lettered
-- Industrial/urban exploration \u2192 stencil_industrial or graffiti_street
+IMPORTANT: Choose the lettering style by REASONING from the cultural research data above.
+Do NOT default to a generic style. Ask yourself:
+  1. What visual culture defines this place? (street art scene? classical architecture? tropical leisure? ancient traditions?)
+  2. What kind of signage would a LOCAL artist or shop owner use here?
+  3. What lettering tradition does this region's history connect to?
 
-DO NOT pick a generic style. The lettering must feel like a LOCAL ARTIST made it.
-If unsure, pick the style that a sign painter in THAT city would use.`;
+The typography should feel like it BELONGS to the place — as if a local artist made it.
+Your cultural research data (motifs, architecture, natural features, POIs) contains the clues.
+Use that data to justify your choice in the "lettering_rationale" field.`;
 
 
   // ═══════════════════════════════════════════════════════════════════
