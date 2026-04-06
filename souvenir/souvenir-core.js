@@ -27,6 +27,22 @@ const SouvenirCore = (() => {
     stamp:     { key: "souvenir.stamp",    dims: [30, 40],   bleed: 0, dpi: 600 }
   };
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Photo classification categories + per-product hero assignment
+  // ═══════════════════════════════════════════════════════════════════
+
+  const PHOTO_CATEGORIES = ["LANDMARK", "LANDSCAPE", "DETAIL", "ATMOSPHERE"];
+
+  // Each product picks its hero from the optimal category.
+  // Priority determines pick order for cross-product dedup.
+  const PRODUCT_HERO_MAP = {
+    postcard: { primary: "LANDSCAPE",  fallback: "ATMOSPHERE", priority: 1 },
+    magnet:   { primary: "LANDMARK",   fallback: "LANDSCAPE",  priority: 2 },
+    sticker:  { primary: "LANDMARK",   fallback: "DETAIL",     priority: 3 },
+    pin:      { primary: "LANDMARK",   fallback: "DETAIL",     priority: 4 },
+    stamp:    { primary: "DETAIL",     fallback: "LANDMARK",   priority: 5 }
+  };
+
   const RULES = {
     postcard: "148x100mm landscape, STRICT 3:2 aspect ratio, full-bleed (design fills edge to edge, no inner white border). Output canvas: pure #FFFFFF background OUTSIDE the postcard shape \u2014 NO table, hands, fabric, or mockup surface.\n\nRENDERING MODE (critical): By default, the postcard is ILLUSTRATED/PAINTED/PRINTED \u2014 NOT a photograph. The attached reference photos inform subject matter, composition, and color palette, but are NOT the final content. Every visual element must be re-rendered in the chosen artistic medium (watercolor, gouache, screenprint, woodcut, ink, mixed-media). EXCEPTION: only the editorial_photo strategy allows a photographic hero, and even then it must be heavily color-graded (duotone, tritone, or matched to the design palette).\n\nCORE AESTHETIC: A REAL printed postcard you would actually mail. Warm matte paper feel, ink-on-paper finish. NOT glossy, NOT metallic, NOT 3D enamel, NOT plasticky, NOT digital-screen-looking. Reference aesthetics: WPA National Park posters, mid-century travel posters (Cassandre, Steinweiss), Kinfolk/Cereal magazine editorial, museum gift shop art postcards, Charley Harper prints.\n\nTEXT LAYOUT (mandatory):\n- Headline (location OR poetic title): CONFIDENT display typeface \u2014 vintage serif, geometric sans, or refined hand-lettering. Large and unmissable. Anchored to top 20% OR bottom 20% \u2014 never floating mid-frame.\n- Date: small, subordinate, in a corner or tucked under the headline.\n- Optional micro-label: distance/elevation, small caps.\n- Max 2 typefaces total. No comic sans, no clip-art fonts, no random decorative scripts.\n- Text MUST sit on a protected zone \u2014 scrim, gradient, panel, or clean sky area. NEVER stacked over busy photo textures where it becomes illegible.\n\nHARD AVOID:\n- Raw unmodified photographs placed in panels or frames (unless strategy is editorial_photo)\n- Photo collage with harsh rectangular cuts and no artistic treatment\n- Floating disconnected text elements\n- Clip-art borders, stock corner ornaments, shutterstock-watermark look\n- Multiple competing focal points fighting for attention\n- Muddy low-contrast color palettes\n- Over-saturated Instagram-filter look\n- Text that a 60-year-old cannot read at arm's length",
     magnet: "70x50mm portrait, 300dpi. Full-bleed. 3D ENAMEL RELIEF: Multiple raised layers separated by polished metallic lines. Back layer recessed (sky/atmosphere), mid layer raised (landmarks), front layer highest (text band, fine details). Bottom: solid raised band, location name in white bold. The magnet must look like a physical object you can pick up and feel. Pure white background, no fabric/table surface.",
@@ -241,6 +257,26 @@ Skylines, facades, cultural symbols, street patterns.`;
     const skip = ["access path","parking lot","bus stop","intersection","highway","ramp","rest area","gas station","exit"];
     const lower = (name||"").toLowerCase();
     return !skip.some(s => lower.includes(s));
+  }
+
+  // Synthesize "what makes this trip unique" from context + cultural + route data.
+  // Pure JS, zero API calls. Used to inject signature hints into photo classification prompt.
+  function _buildSignatureHints(ctx, cultural, routeViz) {
+    const parts = [];
+    if (cultural.unified_motifs?.length)
+      parts.push("Cultural identity: " + cultural.unified_motifs.join(", "));
+    const arch = (cultural.locations || []).flatMap(l => l.architectural_features || []).filter((v, i, a) => a.indexOf(v) === i).slice(0, 5);
+    if (arch.length) parts.push("Architecture: " + arch.join(", "));
+    const nat = (cultural.locations || []).flatMap(l => l.natural_features || []).filter((v, i, a) => a.indexOf(v) === i).slice(0, 5);
+    if (nat.length) parts.push("Natural features: " + nat.join(", "));
+    const routeType = _detectRouteType(ctx);
+    if (routeViz && routeViz.total_km > 0)
+      parts.push("Route: " + routeType + ", " + routeViz.total_km.toFixed(1) + "km");
+    if (ctx.narrative_keywords?.length)
+      parts.push("Trip essence: " + ctx.narrative_keywords.join(", "));
+    const pois = (ctx._pois || []).slice(0, 5).map(p => p.name + " (" + p.type + ")");
+    if (pois.length) parts.push("Notable POIs: " + pois.join(", "));
+    return parts.join("\n") || "No specific signature features identified";
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -491,6 +527,198 @@ Output ONLY JSON:
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // Agent 2b: Classify Photos by design role (replaces _curatePhotos)
+  // Uses cultural + route data to understand local character FIRST,
+  // then classifies each photo by category (LANDMARK/LANDSCAPE/DETAIL/ATMOSPHERE).
+  // ═══════════════════════════════════════════════════════════════════
+
+  async function _classifyPhotos(photoBase64Array, ctx, cultural, routeViz, onStatus) {
+    if (onStatus) onStatus("Classifying photos...");
+    const signatureHints = _buildSignatureHints(ctx, cultural, routeViz);
+    console.log("[SVN] Signature hints:\n", signatureHints);
+
+    const allP = (photoBase64Array || []).map((p, idx) => ({
+      _idx: idx,
+      b64: p.base64,
+      mime: p.mimeType || "image/jpeg",
+      loc: p.location || p.title || "Unknown",
+      title: p.title || ""
+    }));
+
+    const toClassify = allP.slice(0, 20);
+    const classified = [];
+
+    for (let i = 0; i < toClassify.length; i++) {
+      const ph = toClassify[i];
+      if (onStatus) onStatus(`Classifying photo ${i + 1}/${toClassify.length}: ${ph.loc}`);
+      try {
+        if (!ph.b64) { console.warn("[SVN] photo has no base64:", ph.loc); continue; }
+        const prompt = `You are a travel photo classifier for souvenir product design.
+
+Classify this photo into ONE primary and ONE secondary category:
+
+CATEGORIES:
+- LANDMARK: Iconic buildings, monuments, sculptures, distinctive man-made structures. Clear singular subject that could be the centerpiece of a magnet or pin.
+- LANDSCAPE: Wide vistas, panoramas, skylines, bay/ocean/mountain views, nature scenes. Emphasizes breadth, space, and horizon. Good for postcards.
+- DETAIL: Textures, patterns, close-ups, food, crafts, street art, cultural objects, architectural ornaments. Small-scale, tactile. Good for stamps.
+- ATMOSPHERE: Street scenes, light/mood, people in context, candid moments, weather, urban energy. Captures a feeling more than a subject.
+
+Score this photo's FITNESS for each category (0-25). A landscape panorama scores high on LANDSCAPE, low on DETAIL.
+Also score overall design quality (0-25): composition, color, visual impact.
+
+ROUTE CONTEXT (what makes this trip locally distinctive):
+${signatureHints}
+
+Does this photo capture any of the distinctive local features listed above? If yes, describe which specific feature. If no, output null.
+
+Output ONLY JSON:
+{"primary_category":"LANDMARK|LANDSCAPE|DETAIL|ATMOSPHERE","secondary_category":"LANDMARK|LANDSCAPE|DETAIL|ATMOSPHERE","category_scores":{"LANDMARK":0,"LANDSCAPE":0,"DETAIL":0,"ATMOSPHERE":0},"quality_score":0,"signature_match":"specific local feature or null","detected_elements":["element1","element2"],"crop_suggestion":{"aspect_ratio":"16:9 or 1:1 or 4:3","focal_point":"description","safe_zone":"description"},"distinctive_feature":"what makes THIS photo unique in 1 sentence"}`;
+
+        const result = await callAI("vision", {
+          systemPrompt: null,
+          parts: [
+            { inlineData: { mimeType: ph.mime, data: ph.b64 } },
+            { text: prompt }
+          ],
+          temperature: 0.3
+        });
+        const txt = result?.text || result || "";
+        const res = _extractJson(txt);
+        if (res) {
+          const catScores = res.category_scores || {};
+          classified.push({
+            ...ph,
+            category: res.primary_category || "ATMOSPHERE",
+            secondary_category: res.secondary_category || "ATMOSPHERE",
+            category_scores: catScores,
+            quality_score: res.quality_score || 0,
+            score: res.quality_score || 0, // backward compat
+            signature_match: (res.signature_match && res.signature_match !== "null" && res.signature_match.length > 5) ? res.signature_match : null,
+            elements: res.detected_elements || [],
+            crop: res.crop_suggestion,
+            distinctive_feature: res.distinctive_feature || ""
+          });
+          console.log("[SVN] Classified:", ph.loc, "→", res.primary_category,
+            "quality:", res.quality_score,
+            "sig:", res.signature_match ? "YES" : "no",
+            "scores:", JSON.stringify(catScores));
+        } else {
+          console.warn("[SVN] classify parse FAIL:", ph.loc, txt?.slice?.(0, 200));
+        }
+      } catch (e) { console.error("[SVN] classify EXCEPTION:", ph.loc, e.message); }
+      if (i < toClassify.length - 1) await new Promise(r => setTimeout(r, 1500));
+    }
+
+    // Build byCategory buckets: each photo sorted by its score in that category
+    const byCategory = {};
+    for (const cat of PHOTO_CATEGORIES) {
+      byCategory[cat] = classified
+        .filter(p => (p.category_scores[cat] || 0) > 5) // only include if reasonable fit
+        .sort((a, b) => (b.category_scores[cat] || 0) - (a.category_scores[cat] || 0));
+    }
+
+    // Signature photos: those with a non-null signature_match, ranked by quality
+    const signaturePhotos = classified
+      .filter(p => p.signature_match)
+      .sort((a, b) => b.quality_score - a.quality_score);
+
+    // Backward-compat: topPhotos and heroPhoto
+    const topPhotos = [...classified].sort((a, b) => b.quality_score - a.quality_score).slice(0, 5);
+
+    console.log("[SVN] Classification summary:",
+      "LANDMARK:", byCategory.LANDMARK?.length || 0,
+      "LANDSCAPE:", byCategory.LANDSCAPE?.length || 0,
+      "DETAIL:", byCategory.DETAIL?.length || 0,
+      "ATMOSPHERE:", byCategory.ATMOSPHERE?.length || 0,
+      "signature:", signaturePhotos.length);
+
+    return {
+      byCategory,
+      signaturePhotos,
+      topPhotos,
+      heroPhoto: topPhotos[0] || null,
+      allClassified: classified
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Agent 2c: Extract elements from top photo per category
+  // ═══════════════════════════════════════════════════════════════════
+
+  async function _extractMultiElements(classifiedResult, ctx, cultural, onStatus) {
+    const elementSets = {};
+    const seen = new Set();
+    for (const cat of PHOTO_CATEGORIES) {
+      const photos = classifiedResult.byCategory[cat] || [];
+      const photo = photos.find(p => !seen.has(p._idx)) || photos[0];
+      if (!photo?.b64) { elementSets[cat] = null; continue; }
+      if (seen.has(photo._idx)) {
+        // Already extracted this photo for another category — alias the result
+        for (const [prevCat, prevSet] of Object.entries(elementSets)) {
+          if (prevSet && classifiedResult.byCategory[prevCat]?.[0]?._idx === photo._idx) {
+            elementSets[cat] = prevSet;
+            break;
+          }
+        }
+        continue;
+      }
+      seen.add(photo._idx);
+      if (onStatus) onStatus(`Extracting ${cat} elements: ${photo.loc}`);
+      elementSets[cat] = await _extractElements(photo, ctx, cultural, onStatus);
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    console.log("[SVN] Multi-elements extracted:", Object.entries(elementSets).filter(([, v]) => v).map(([k, v]) => k + ": " + (v?.element_name || "?")).join(", "));
+    return elementSets;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Agent 2d: Assign heroes per product (deterministic, 0 API calls)
+  // ═══════════════════════════════════════════════════════════════════
+
+  function _assignHeroes(classifiedResult, elementSets, selectedProducts) {
+    const assignments = {};
+    const usedPhotos = new Set();
+
+    // Sort products by priority (lower picks first)
+    const sorted = [...selectedProducts].sort((a, b) =>
+      (PRODUCT_HERO_MAP[a]?.priority || 99) - (PRODUCT_HERO_MAP[b]?.priority || 99)
+    );
+
+    for (const prodType of sorted) {
+      const map = PRODUCT_HERO_MAP[prodType];
+      if (!map) continue;
+
+      let photo = null, category = null;
+
+      // Try primary category, then fallback
+      for (const cat of [map.primary, map.fallback]) {
+        const candidates = classifiedResult.byCategory[cat] || [];
+        // Prefer signature-matched photos in this category
+        const sigMatch = candidates.find(p => !usedPhotos.has(p._idx) && p.signature_match);
+        const available = sigMatch || candidates.find(p => !usedPhotos.has(p._idx));
+        if (available) { photo = available; category = cat; break; }
+      }
+
+      // Last resort: best available from any category
+      if (!photo) {
+        photo = classifiedResult.topPhotos.find(p => !usedPhotos.has(p._idx))
+          || classifiedResult.topPhotos[0];
+        category = photo?.category || "LANDSCAPE";
+      }
+
+      if (photo) usedPhotos.add(photo._idx);
+
+      assignments[prodType] = {
+        photo,
+        elements: elementSets[category] || elementSets[photo?.category] || null,
+        category
+      };
+      console.log("[SVN] Hero assigned:", prodType, "→", photo?.loc, `(${category})`, photo?.signature_match ? "[SIG]" : "");
+    }
+    return assignments;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // Agent 3: Cultural Enrichment (search + text AI)
   // Uses callAI("search") for Tavily, callAI("text") for synthesis
   // ═══════════════════════════════════════════════════════════════════
@@ -710,17 +938,19 @@ Output ONLY strict JSON:
   // Agent 6: Image Generation
   // ═══════════════════════════════════════════════════════════════════
 
-  async function _genImage(trip, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, varNum, heroIdx) {
+  async function _genImage(trip, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, varNum, heroAssignment) {
     const cs = ds.color_system || {};
     const rule = RULES[prodType] || "";
     const dk = "design_" + (prodType === "magnet" ? "fridge_magnet" : prodType);
 
     // ── Variant hero selection ──
-    // If heroIdx is provided (non-null), this variant focuses on ONE specific moment.
-    // If heroIdx is null (e.g. signature composite), use all moments equally.
-    const hasHero = heroIdx != null && moments.length > 0;
-    const heroMoment = hasHero ? moments[heroIdx % moments.length] : null;
-    const otherMoments = hasHero ? moments.filter((_, i) => i !== (heroIdx % moments.length)) : moments;
+    // heroAssignment = {photo, elements, category} or null for composite.
+    const hasHero = heroAssignment && heroAssignment.photo && moments.length > 0;
+    // Find the moment that matches the assigned hero photo's location
+    const heroMoment = hasHero
+      ? (moments.find(m => m.photo_loc === heroAssignment.photo.loc || m.location_name === heroAssignment.photo.loc) || moments[0])
+      : null;
+    const otherMoments = hasHero ? moments.filter(m => m !== heroMoment) : moments;
 
     // Build scene inventory
     let sceneInventory;
@@ -748,22 +978,27 @@ Output ONLY strict JSON:
       l.location_name + ": symbols=" + (l.visual_motifs||[]).join(",") + " arch=" + (l.architectural_features||[]).join(",") + " nature=" + (l.natural_features||[]).join(",") + " colors=" + (l.color_palette||[]).join(",")
     ).join("\n");
 
+    const heroCategory = heroAssignment?.category || "";
+    const heroElementInfo = heroAssignment?.elements
+      ? `\nHero element: ${heroAssignment.elements.element_name || ""} (${heroAssignment.elements.element_type || ""})\n  ${heroAssignment.elements.description || ""}`
+      : "";
     const variantFocusSection = hasHero && heroMoment ? `
 
-=== VARIANT FOCUS (MANDATORY for diversity across variants) ===
-This is variant ${varNum}. Each variant in the set MUST feature a DIFFERENT primary subject.
-DO NOT default to the most visually striking element across all variants (e.g. if there is a famous statue, sculpture, or landmark that appears in multiple photos, do not use it in every variant).
+=== HERO ASSIGNMENT (from ${heroCategory} category) ===
+This product (${prodType}) has been assigned a ${heroCategory} hero.
+The hero was selected because ${heroCategory} photos work best for ${prodType} products.
+${heroElementInfo}
 
-PRIMARY SUBJECT for THIS variant: "${heroMoment.location_name}"
+PRIMARY SUBJECT for THIS product: "${heroMoment.location_name}"
   Caption: ${heroMoment.moment_caption}
   Key elements: ${(heroMoment.photo_elements || []).join(", ") || "(see attached photo)"}
+  Distinctive feature: ${heroAssignment.photo?.distinctive_feature || ""}
 
 This subject MUST occupy 50-70% of the visual weight and be the clear, unmistakable focal point.
-The other scenes listed as "supporting" may appear as subtle context (background texture, secondary motif, color palette influence) but MUST NOT compete with the primary subject.
+Other scenes appear as subtle supporting context only — they MUST NOT compete with the hero.
 
-DIVERSITY CHECK:
-- If you feel tempted to include the most iconic landmark (sculpture/statue/monument) of this trip in every variant, STOP. This variant's story is about "${heroMoment.location_name}".
-- Tell THAT story, not the most photographed element.
+IMPORTANT: Other product types in this batch have been assigned DIFFERENT heroes from different categories.
+Your job is to tell the story of "${heroMoment.location_name}" for this ${prodType}. Do not substitute a different subject.
 ` : "";
 
     const photoAllowed = PHOTO_ALLOWED_STRATEGIES.has(stratName);
@@ -861,26 +1096,23 @@ COMPOSITION QUALITY:
 Museum gift shop standard. Worth keeping 20 years.
 Each variant must offer something genuinely different.`;
 
-    // Attach reference photos.
-    // IMPORTANT: For hero-focused variants, attach ONLY the hero's photo + 1 supporting photo.
-    // This prevents the image model from defaulting to the most visually striking element
-    // across all photos (e.g. a prominent statue that would otherwise appear in every variant).
-    // For signature composite (heroIdx=null), attach all top photos to encourage the "full story" collage.
+    // Attach reference photos based on hero assignment.
+    // Hero-focused: attach the assigned hero photo + 1 supporting photo from a DIFFERENT category.
+    // Composite (heroAssignment=null): attach all top photos for the "full story" collage.
     const parts = [];
     const top = photoResult.topPhotos || [];
-    if (hasHero && heroMoment) {
-      // Find the photo matching the hero moment's location
-      const heroPhoto = top.find(p => p.loc === heroMoment.photo_loc) || top[0];
-      if (heroPhoto && heroPhoto.b64) {
-        parts.push({ inlineData: { mimeType: heroPhoto.mime || "image/jpeg", data: heroPhoto.b64 } });
+    if (hasHero && heroAssignment?.photo) {
+      const hp = heroAssignment.photo;
+      if (hp.b64) {
+        parts.push({ inlineData: { mimeType: hp.mime || "image/jpeg", data: hp.b64 } });
       }
-      // Add 1 supporting photo from a DIFFERENT location for color/context reference only
-      const supportingPhoto = top.find(p => p !== heroPhoto && p.loc !== heroMoment.photo_loc);
+      // Add 1 supporting photo from a DIFFERENT category for context
+      const supportingPhoto = top.find(p => p !== hp && p.category !== heroAssignment.category);
       if (supportingPhoto && supportingPhoto.b64) {
         parts.push({ inlineData: { mimeType: supportingPhoto.mime || "image/jpeg", data: supportingPhoto.b64 } });
       }
     } else {
-      // Composite or no-hero path: use all top photos
+      // Composite path: use all top photos
       for (let i = 0; i < Math.min(top.length, 5); i++) {
         if (top[i].b64) parts.push({ inlineData: { mimeType: top[i].mime || "image/jpeg", data: top[i].b64 } });
       }
@@ -1049,36 +1281,42 @@ Output ONLY strict JSON:
 
     try {
       // ── Agent 1: Build Context ──
-      status("Agent 1/6: Building trip context...");
+      status("Agent 1/8: Building trip context...");
       const ctx = await _buildContext(tripData, status);
       console.log("[SVN] Context built:", ctx.trip_title, "mood:", ctx.dominant_mood);
 
       // ── Route visualization (deterministic) ──
       const routeViz = _routeVisualize(tripData.gpxTrack, ctx.key_locations);
 
-      // ── Agent 2: Curate Photos ──
-      status("Agent 2/6: Curating photos...");
-      const photoResult = await _curatePhotos(photoBase64Array, status);
-      console.log("[SVN] Photos curated:", photoResult.topPhotos.length, "top, hero:", photoResult.heroPhoto?.loc);
-
-      // ── Agent 3: Cultural Enrichment ──
-      status("Agent 3/6: Cultural research...");
+      // ── Agent 2: Cultural Enrichment (moved BEFORE photos to inform classification) ──
+      status("Agent 2/8: Cultural research...");
       const cultural = await _culturalEnrich(ctx, status);
       console.log("[SVN] Cultural enrichment done, locations:", cultural.locations?.length);
 
-      // ── Agent 4: Extract Elements + Journey Moments ──
-      status("Agent 4/6: Analyzing visual elements...");
-      const heroElements = await _extractElements(photoResult.heroPhoto, ctx, cultural, status);
-      const moments = await _journeyMoments(photoResult, ctx, cultural, status);
-      console.log("[SVN] Moments:", moments.length, "Hero elements:", heroElements?.element_name);
+      // ── Agent 3: Classify Photos (replaces _curatePhotos) ──
+      status("Agent 3/8: Classifying photos by design role...");
+      const photoResult = await _classifyPhotos(photoBase64Array, ctx, cultural, routeViz, status);
+      console.log("[SVN] Photos classified:", photoResult.topPhotos.length, "top, categories:", Object.entries(photoResult.byCategory).map(([k, v]) => k + ":" + v.length).join(" "));
 
-      // ── Agent 5: Design System ──
-      status("Agent 5/6: Creating design system...");
+      // ── Agent 4: Multi-Element Extraction (1 per category, not 1 total) ──
+      status("Agent 4/8: Extracting visual elements per category...");
+      const elementSets = await _extractMultiElements(photoResult, ctx, cultural, status);
+
+      // ── Agent 5: Assign Heroes per product (deterministic, 0 API calls) ──
+      const heroMap = _assignHeroes(photoResult, elementSets, products);
+
+      // ── Agent 6: Journey Moments ──
+      status("Agent 6/8: Building design briefs...");
+      const moments = await _journeyMoments(photoResult, ctx, cultural, status);
+      console.log("[SVN] Moments:", moments.length);
+
+      // ── Agent 7: Design System ──
+      status("Agent 7/8: Creating design system...");
       const ds = await _designSystem(ctx, photoResult, cultural, moments, routeViz, status);
       console.log("[SVN] Design system:", ds.visual_approach, ds.primary_motif, ds.color_system?.primary);
 
-      // ── Agent 6: Generate Images ──
-      status("Agent 6/6: Generating souvenir images...");
+      // ── Agent 8: Generate Images ──
+      status("Agent 8/8: Generating souvenir images...");
       const results = [];
 
       for (let pIdx = 0; pIdx < products.length; pIdx++) {
@@ -1086,19 +1324,16 @@ Output ONLY strict JSON:
         const fusionStrategies = FUSIONS[prodType] || {};
         const stratEntries = Object.entries(fusionStrategies);
         const selectedStrats = stratEntries.slice(0, numVariants);
-        const numMoments = Math.max(1, moments.length);
+        const assignment = heroMap[prodType];
 
-        // Generate each variant
+        // Generate each variant — same hero for all variants of this product.
+        // Variant diversity comes from the STRATEGY (fusion style), not hero rotation.
         for (let vi = 0; vi < selectedStrats.length; vi++) {
           const [stratName, stratDir] = selectedStrats[vi];
-          // Rotate hero moment across variants AND across products so the same scene
-          // doesn't always fall on the same variant index. This ensures visual diversity
-          // across the full result set (e.g. bull in variant 1 of postcard but not variant 1 of magnet).
-          const heroIdx = (pIdx * 7 + vi * 3) % numMoments;
-          const heroName = moments[heroIdx]?.location_name || "scene " + (heroIdx + 1);
-          status(`Generating ${prodType} variant ${vi+1}/${selectedStrats.length}: ${stratName} (hero: ${heroName})`);
+          const heroName = assignment?.photo?.loc || "composite";
+          status(`Generating ${prodType} variant ${vi+1}/${selectedStrats.length}: ${stratName} (hero: ${heroName} [${assignment?.category}])`);
           try {
-            let img = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, vi + 1, heroIdx);
+            let img = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, stratDir, vi + 1, assignment);
             if (img && img.base64) {
               // Quality Judge
               status(`Judging ${prodType} ${stratName}...`);
@@ -1137,7 +1372,7 @@ Output ONLY strict JSON:
                     flagStr + issueStr + weakStr +
                     "\n\nGenerate a NEW version that specifically addresses these problems. Do NOT repeat the same mistakes. Focus especially on unified style across all elements.";
 
-                  const retryImg = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, retryDir, vi + 1, heroIdx);
+                  const retryImg = await _genImage(tripData, ctx, photoResult, cultural, ds, moments, prodType, stratName, retryDir, vi + 1, assignment);
                   if (retryImg && retryImg.base64) {
                     const judge2 = await _judgeImage(retryImg.base64, retryImg.mime, prodType, stratName);
                     status(`Retry quality: ${judge2.score}/100`);
