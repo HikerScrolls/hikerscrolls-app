@@ -44,7 +44,7 @@ const SouvenirCore = (() => {
   };
 
   const RULES = {
-    postcard: "148x100mm landscape, STRICT 3:2 aspect ratio, full-bleed (design fills edge to edge, no inner white border). Output canvas: pure #FFFFFF background OUTSIDE the postcard shape \u2014 NO table, hands, fabric, or mockup surface.\n\nRENDERING MODE (critical): By default, the postcard is ILLUSTRATED/PAINTED/PRINTED \u2014 NOT a photograph. The attached reference photos inform subject matter, composition, and color palette, but are NOT the final content. Every visual element must be re-rendered in the chosen artistic medium (watercolor, gouache, screenprint, woodcut, ink, mixed-media). EXCEPTION: only the editorial_photo strategy allows a photographic hero, and even then it must be heavily color-graded (duotone, tritone, or matched to the design palette).\n\nCORE AESTHETIC: A REAL printed postcard you would actually mail. Warm matte paper feel, ink-on-paper finish. NOT glossy, NOT metallic, NOT 3D enamel, NOT plasticky, NOT digital-screen-looking. Reference aesthetics: WPA National Park posters, mid-century travel posters (Cassandre, Steinweiss), Kinfolk/Cereal magazine editorial, museum gift shop art postcards, Charley Harper prints.\n\nTEXT LAYOUT (mandatory):\n- Headline (location OR poetic title): CONFIDENT display typeface \u2014 vintage serif, geometric sans, or refined hand-lettering. Large and unmissable. Anchored to top 20% OR bottom 20% \u2014 never floating mid-frame.\n- Date: small, subordinate, in a corner or tucked under the headline.\n- Optional micro-label: distance/elevation, small caps.\n- Max 2 typefaces total. No comic sans, no clip-art fonts, no random decorative scripts.\n- Text MUST sit on a protected zone \u2014 scrim, gradient, panel, or clean sky area. NEVER stacked over busy photo textures where it becomes illegible.\n\nHARD AVOID:\n- Raw unmodified photographs placed in panels or frames (unless strategy is editorial_photo)\n- Photo collage with harsh rectangular cuts and no artistic treatment\n- Floating disconnected text elements\n- Clip-art borders, stock corner ornaments, shutterstock-watermark look\n- Multiple competing focal points fighting for attention\n- Muddy low-contrast color palettes\n- Over-saturated Instagram-filter look\n- Text that a 60-year-old cannot read at arm's length",
+    postcard: "148x100mm landscape, STRICT 3:2 aspect ratio, full-bleed (design fills edge to edge, no inner white border). Output canvas: pure #FFFFFF background OUTSIDE the postcard shape \u2014 NO table, hands, fabric, or mockup surface.\n\nRENDERING MODE (critical): The postcard must have ARTISTIC TREATMENT \u2014 it should feel crafted, not like a raw photo dump. The style spectrum ranges from heavily-processed photography to pure illustration, depending on the strategy:\n- PURE ILLUSTRATION: watercolor, gouache, screenprint, woodcut, ink (panoramic_journey, illustrated_map)\n- MIXED-MEDIA: illustration with treated photo fragments, collage, halftone overlay (triptych_narrative, layered_memory)\n- EDITORIAL PHOTO: one hero photo with heavy color grading + strong design typography (editorial_photo)\nThe key test: does it look like an ARTIST made a deliberate creative choice? If yes, it passes. If it looks like photos dropped into a template, it fails.\nEach strategy specifies its own medium \u2014 follow that medium's aesthetic rules.\n\nCORE AESTHETIC: A REAL printed postcard you would actually mail. Warm matte paper feel, ink-on-paper finish. NOT glossy, NOT metallic, NOT 3D enamel, NOT plasticky, NOT digital-screen-looking. Reference aesthetics: WPA National Park posters, mid-century travel posters (Cassandre, Steinweiss), Kinfolk/Cereal magazine editorial, museum gift shop art postcards, Charley Harper prints.\n\nTEXT LAYOUT (mandatory):\n- Headline (location OR poetic title): CONFIDENT display typeface \u2014 vintage serif, geometric sans, or refined hand-lettering. Large and unmissable. Anchored to top 20% OR bottom 20% \u2014 never floating mid-frame.\n- Date: small, subordinate, in a corner or tucked under the headline.\n- Optional micro-label: distance/elevation, small caps.\n- Max 2 typefaces total. No comic sans, no clip-art fonts, no random decorative scripts.\n- Text MUST sit on a protected zone \u2014 scrim, gradient, panel, or clean sky area. NEVER stacked over busy photo textures where it becomes illegible.\n\nHARD AVOID:\n- Raw unmodified photographs placed in panels or frames (unless strategy is editorial_photo)\n- Photo collage with harsh rectangular cuts and no artistic treatment\n- Floating disconnected text elements\n- Clip-art borders, stock corner ornaments, shutterstock-watermark look\n- Multiple competing focal points fighting for attention\n- Muddy low-contrast color palettes\n- Over-saturated Instagram-filter look\n- Text that a 60-year-old cannot read at arm's length",
     magnet: "70x50mm portrait, 300dpi. Full-bleed. 3D ENAMEL RELIEF: Multiple raised layers separated by polished metallic lines. Back layer recessed (sky/atmosphere), mid layer raised (landmarks), front layer highest (text band, fine details). Bottom: solid raised band, location name in white bold. The magnet must look like a physical object you can pick up and feel. Pure white background, no fabric/table surface.",
     sticker: "60x60mm, 300dpi. 4mm white die-cut stroke outline. Bold and readable at small scale. Location or short text at base. Clean design on pure white background, no mockup.",
     pin: "38mm circle, 400dpi (output as square, design inside circle). CLOISONNE ENAMEL: Fine metal wire defines all color boundaries (visible as raised lines). Enamel fills sit slightly recessed within metal walls. Polished border ring. Location arc text at bottom. Max 6 flat enamel colors. Must look like a jewel, not a printed sticker. Pure white background, no fabric/felt surface.",
@@ -61,10 +61,10 @@ const SouvenirCore = (() => {
     },
     postcard: {
       panoramic_journey: "MEDIUM: Gouache or watercolor panorama, painted in a single unified session. NOT stitched photographs. The entire horizon is ONE painting with loose bleeding edges between scene areas. Shared atmospheric wash (golden hour, morning mist, or dusk haze) unifies everything. Subjects are PAINTED, not photographed. Bottom third carries a thin horizontal type bar with location name left-aligned and date right-aligned, separated by a hairline rule. The eye travels left to right like a traveler crossing the painted landscape. Reference: WPA National Park watercolor posters, David Hockney panoramas.",
-      triptych_narrative: "MEDIUM: Illustrated gouache, screenprint, or vintage travel poster style. Three narrative scenes (PLACE \u2192 MOMENT \u2192 DETAIL) arranged left to right, telling a story of arrival, experience, and memory. CRITICAL LAYOUT: NO hard panel dividers, NO visible gutters or borders between scenes. The three scenes FLOW INTO EACH OTHER through soft gradient transitions, shared atmospheric light, overlapping silhouettes, or color washes that bridge scene boundaries. The edges between scenes should be INVISIBLE \u2014 one scene melts into the next like a dissolve in film. ONE PRIMARY SUBJECT must clearly dominate: it occupies the visual center, is rendered in the most detail and contrast, and draws the eye first. The other two scenes recede in saturation, detail, or scale \u2014 they support the hero, they don't compete with it. Shared palette (4\u20136 colors), unified light direction, same brushwork texture throughout. Headline at bottom in hand-lettered or custom type, anchored to the illustration. Reference: WPA travel posters, Charley Harper, mid-century illustrated travel brochures where multiple scenes merge into one composition.",
+      triptych_narrative: "MEDIUM: FLEXIBLE \u2014 choose the style that fits this trip's culture. Options: (a) illustrated gouache/screenprint, (b) mixed-media with heavily-treated photo fragments (halftone, duotone, painted-over, aged), (c) stylized digital illustration with local cultural texture. Three narrative scenes (PLACE \u2192 MOMENT \u2192 DETAIL) arranged left to right. CRITICAL LAYOUT: NO hard panel dividers, NO visible gutters or borders between scenes. The three scenes FLOW INTO EACH OTHER through soft gradient transitions, shared atmospheric light, overlapping silhouettes, or color washes. Edges between scenes are INVISIBLE \u2014 one melts into the next like a film dissolve. ONE PRIMARY SUBJECT dominates: visual center, most detail/contrast, draws the eye first. Other scenes recede. Shared palette, unified light direction, consistent treatment. If using photo fragments, they MUST be artistically transformed (not raw) \u2014 think Wes Anderson color grade, halftone print, selective desaturation, painted overlay. Headline in locally-appropriate lettering (e.g. graffiti for Miami, brush for Tokyo, Art Nouveau for Paris). Reference: WPA posters, Charley Harper, mid-century travel brochures.",
       illustrated_map: "MEDIUM: Hand-drawn ink and watercolor map. The postcard IS a stylized map, NOT a photo composite. Stylized terrain drawn in ink lines, hand-lettered place names, confident route line connecting waypoints, tiny vignette illustrations at each stop (small watercolor sketches, NEVER pasted photos). Optional compass rose or scale bar. Title set in a vintage cartouche in the top-left corner. Limited palette: 4\u20135 inks max, plus subtle warm paper texture showing through. Reference: Tolkien Middle-earth maps, Lonely Planet illustrated maps, vintage national park maps.",
       editorial_photo: "THIS IS THE ONE STRATEGY WHERE A PHOTOGRAPHIC HERO IS ALLOWED. One dominant hero PHOTO fills the entire card, but heavily color-graded to MATCH the design system palette (not the raw photo colors) \u2014 duotone, tritone, bleached, warmed, or pushed into a unified grade. Large confident typographic overlay \u2014 the headline IS the point, set in a display serif or elegant geometric sans, anchored either full-width at the bottom OR hard-left in a corner. A dark scrim, color gradient, or solid color block sits behind the text for legibility. Think Kinfolk magazine cover, Cereal magazine, New York Times editorial travel feature. NOT a social media share card.",
-      layered_memory: "MEDIUM: Mixed-media collage \u2014 aged paper, hand-stamped elements, illustration mixed with heavily-processed image fragments. NOT raw photos. Every image fragment must be TREATED (aged, desaturated to near-monochrome with selective color, halftone-printed, or painted over). Soft feathered edges, no hard crops. One clean typographic anchor: the location name set confidently in one spot (lower-left or lower-right), date as a subtle companion beneath. Warm nostalgic palette. Feels hand-assembled from a travel journal. Reference: vintage scrapbooks, Wes Anderson title design, Peter Beard journals."
+      layered_memory: "MEDIUM: Mixed-media collage with REAL TEXTURE \u2014 aged paper, hand-stamped elements, postcards-within-postcards, washi tape, stamps, airline tickets. Photo fragments ARE allowed but must be artistically TREATED: aged with grain/scratches, desaturated to near-monochrome with selective color pops, halftone-dot-printed, torn-edge masked, or painted-over with transparent washes. The collage should feel PHYSICAL \u2014 like someone assembled it on a real table with real hands, real glue, real scissors. Soft feathered edges, torn paper edges, overlapping layers with visible paper texture. One clean typographic anchor: the location name in locally-appropriate lettering, date as a subtle companion. Warm nostalgic palette. Reference: Peter Beard journals, vintage scrapbooks, Wes Anderson prop design, Japanese travel sticker collections."
     },
     sticker: {
       merit_badge: "Circular/shield badge celebrating trip achievements. Central icon surrounded by smaller icons from other scenes. Decorative border. Patch aesthetic.",
@@ -122,8 +122,36 @@ Stamp: Botanical illustration style OR fine topographic engraving. Capture a spe
     brush_lettering:      "Expressive brush stroke lettering with variable weight and wet-ink feel. East Asian calligraphy influence, contemporary brush hand. Strokes have direction, pressure, and rhythm. Good for Japan/China/Korea routes or energetic adventures.",
     stencil_industrial:   "Bold stencil letters with visible gaps/bridges \u2014 military, industrial, travel crate aesthetic. Can have spray paint texture or clean cut. Good for adventure/expedition/urban explorer vibes.",
     badge_monogram:       "Letters integrated into a monogram, crest, or shield \u2014 trip branded like a heraldic device. Letters interlock, stack, or nest inside a circular/shield frame. National Park emblem, college crest, boy scout badge.",
-    engraved_classical:   "Classical engraved inscription \u2014 Trajan column proportions, museum plaque, commemorative medal, currency engraving. Perfectly spaced capitals, restrained elegance. For formal/historical/pilgrimage trips."
+    engraved_classical:   "Classical engraved inscription \u2014 Trajan column proportions, museum plaque, commemorative medal, currency engraving. Perfectly spaced capitals, restrained elegance. For formal/historical/pilgrimage trips.",
+    graffiti_street:      "Urban graffiti/street art lettering \u2014 bold bubble letters, wildstyle tags, spray-can drips, vibrant neon fills with hard outlines. Miami Wynwood, NYC subway, Berlin wall, Shoreditch. The letters ARE street art. High energy, raw, unapologetic color.",
+    neon_retro:           "Vintage neon sign lettering \u2014 glowing tubes, warm haloes, motel/diner/casino marquee feel. Think Las Vegas strip, Tokyo Shinjuku, Hong Kong night market. Letters glow against dark backgrounds. Nostalgic night-city romance.",
+    tropical_script:      "Loose flowing tropical script \u2014 palm-frond-inspired swashes, rum-bar signage, tiki-lounge warmth. Surfer-casual but crafted. Sunset gradients in the fills. Miami Beach, Bali, Caribbean, Hawaiian postcards of the 1950s-60s.",
+    arabic_geometric:     "Geometric patterns inspired by Islamic art \u2014 interlocking angular letterforms, tessellation influence, Moorish arch framing. For Morocco, Andalusia, Turkey, Dubai, Persian Gulf. Letters integrated into zellige-tile-like geometry.",
+    nordic_rune:          "Viking/Nordic inspired angular letterforms \u2014 sharp runic angles, carved-in-wood feel, interlace knotwork borders. For Scandinavia, Iceland, Scotland. Minimal color, bold structure.",
+    ukiyo_e:              "Japanese woodblock print lettering \u2014 vertical text flow option, bold ink strokes with woodgrain texture, hanko/stamp seal accent. For Japan routes. Traditional yet bold.",
+    art_nouveau:          "Flowing organic Art Nouveau letterforms \u2014 whiplash curves, floral tendrils growing from letter stems, Mucha-poster elegance. For Paris, Prague, Barcelona, Vienna. Letters are living, growing things."
   };
+
+  // Cultural hints for lettering selection \u2014 the AI should pick styles
+  // that resonate with the trip's cultural context, not randomly.
+  const CULTURE_LETTERING_HINTS = `
+IMPORTANT: Choose the lettering style based on the CULTURAL CONTEXT of the trip location.
+The typography should feel like it BELONGS to the place. Examples:
+- Miami, LA, Brooklyn, Berlin \u2192 graffiti_street or neon_retro or tropical_script
+- Tokyo, Kyoto, Osaka \u2192 ukiyo_e or brush_lettering
+- Paris, Prague, Vienna, Barcelona \u2192 art_nouveau or deco_sans
+- Morocco, Istanbul, Dubai \u2192 arabic_geometric
+- Iceland, Norway, Scotland \u2192 nordic_rune
+- Italian coast, Greek islands, Mediterranean \u2192 hand_lettered or sign_painter
+- National parks, mountain trails, wilderness \u2192 western_wood_type or badge_monogram or sign_painter
+- London, NYC classic, Chicago \u2192 vintage_display_serif or deco_sans
+- Historical/pilgrimage routes \u2192 engraved_classical or cartouche_script
+- Beach/surf/tropical destinations \u2192 tropical_script or hand_lettered
+- Industrial/urban exploration \u2192 stencil_industrial or graffiti_street
+
+DO NOT pick a generic style. The lettering must feel like a LOCAL ARTIST made it.
+If unsure, pick the style that a sign painter in THAT city would use.`;
+
 
   // ═══════════════════════════════════════════════════════════════════
   // Quality framework (inspired by "complexity vs harmony" composition theory)
@@ -141,11 +169,13 @@ Stamp: Botanical illustration style OR fine topographic engraving. Capture a spe
   // Failure flags deduct hard penalties on top of weighted score.
   // ═══════════════════════════════════════════════════════════════════
 
-  // Strategies that allow photographic content in the final output.
-  // Any strategy NOT in this set must produce an illustration/painting/print
-  // — raw photos in the output are a hard failure.
+  // Strategies that allow photographic content (must be artistically treated).
+  // "photo" = heavily-graded single hero. "mixed" = treated fragments in collage/mixed-media.
+  // Any strategy NOT here must produce pure illustration — raw photos are a hard failure.
   const PHOTO_ALLOWED_STRATEGIES = new Set([
-    "editorial_photo" // postcard: the one strategy built around a heavily-graded hero photo
+    "editorial_photo",     // postcard: heavily-graded hero photo + strong typography
+    "triptych_narrative",  // postcard: mixed-media, treated photo fragments OK (halftone, desaturated, painted-over)
+    "layered_memory"       // postcard: collage with aged/processed photo fragments
   ]);
 
   // Hard deductions for specific failure modes (applied AFTER weighted dimension score).
@@ -986,8 +1016,10 @@ Color principles:
 - Accent for emphasis only
 
 Typography principle: The headline is a CRAFTED VISUAL ELEMENT, not a default font.
-Pick ONE lettering_style from this list that best fits the trip's mood and region:
+Pick ONE lettering_style from this list that best fits the trip's CULTURAL CONTEXT and location:
 ${Object.entries(LETTERING_STYLES).map(([k,v]) => "- " + k + ": " + v).join("\n")}
+
+${CULTURE_LETTERING_HINTS}
 
 Output ONLY strict JSON:
 {"visual_approach":"photo-driven or route-driven",
@@ -1110,24 +1142,31 @@ The overall composition should have a clear visual flow (left-to-right, center-o
     }
 
     const photoAllowed = PHOTO_ALLOWED_STRATEGIES.has(stratName);
-    const ruleZero = photoAllowed
-      ? `\u2554\u2550\u2550 RULE ZERO \u2014 EDITORIAL PHOTO STRATEGY \u2550\u2550\u2557
-This strategy ("${stratName}") is the ONE exception where a photographic hero is allowed.
-Use ONE hero photo, but you MUST heavily color-grade it \u2014 duotone, tritone, bleached,
-warmed, or pushed into the design-system palette. A raw unmodified photo is still a failure.
-\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d`
-      : `\u2554\u2550\u2550 RULE ZERO \u2014 NO RAW PHOTOGRAPHS IN THE OUTPUT \u2550\u2550\u2557
-The final design MUST NOT contain raw photographic imagery. Every visual element
-must be RE-RENDERED as illustration, painting, watercolor, gouache, screenprint,
-woodcut, ink-and-wash, or mixed-media \u2014 following the strategy's chosen MEDIUM.
-
-The attached photos are REFERENCE ONLY \u2014 use them to understand subject identity,
-composition geometry, and dominant colors. They MUST NOT appear in the final output.
-
-If you find yourself placing a photo inside a frame/panel/box, STOP and redraw
-the scene in the chosen artistic medium instead. A photo with a title bar is
-NOT a designed postcard.
+    let ruleZero;
+    if (stratName === "editorial_photo") {
+      ruleZero = `\u2554\u2550\u2550 RULE ZERO \u2014 EDITORIAL PHOTO STRATEGY \u2550\u2550\u2557
+This strategy uses a photographic hero with HEAVY color grading \u2014 duotone, tritone,
+bleached, warmed, or matched to the design palette. RAW unmodified photo = failure.
+Strong design typography overlay is mandatory.
+\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d`;
+    } else if (photoAllowed) {
+      ruleZero = `\u2554\u2550\u2550 RULE ZERO \u2014 MIXED-MEDIA (treated photo fragments OK) \u2550\u2550\u2557
+This strategy ("${stratName}") allows photo FRAGMENTS but they MUST be artistically
+treated: halftone-printed, duotone, aged with grain/scratches, desaturated to
+near-monochrome with selective color, torn-edge masked, or painted over with
+transparent washes. NO raw unmodified photographs. The result should look like
+a skilled collage artist or print-maker made it, not a photo editor.
 \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d`;
+    } else {
+      ruleZero = `\u2554\u2550\u2550 RULE ZERO \u2014 PURE ILLUSTRATION (no photographs) \u2550\u2550\u2557
+This strategy requires PURE illustration/painting/print. Every visual element
+must be RE-RENDERED as watercolor, gouache, screenprint, woodcut, ink-and-wash,
+or similar artistic medium. The attached photos are REFERENCE ONLY.
+
+If you find yourself placing a photo inside a frame/panel, STOP and redraw
+the scene in the chosen artistic medium instead.
+\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d`;
+    }
 
     const prompt = `You are a senior travel souvenir designer. Create variant ${varNum}.
 
