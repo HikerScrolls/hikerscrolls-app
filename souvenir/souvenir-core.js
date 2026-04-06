@@ -45,10 +45,10 @@ const SouvenirCore = (() => {
 
   const RULES = {
     postcard: "148x100mm landscape, STRICT 3:2 aspect ratio, full-bleed (design fills edge to edge, no inner white border). Output canvas: pure #FFFFFF background OUTSIDE the postcard shape \u2014 NO table, hands, fabric, or mockup surface.\n\nRENDERING MODE (critical): The postcard must have ARTISTIC TREATMENT \u2014 it should feel crafted, not like a raw photo dump. The style spectrum ranges from heavily-processed photography to pure illustration, depending on the strategy:\n- PURE ILLUSTRATION: watercolor, gouache, screenprint, woodcut, ink (panoramic_journey, illustrated_map)\n- MIXED-MEDIA: illustration with treated photo fragments, collage, halftone overlay (triptych_narrative, layered_memory)\n- EDITORIAL PHOTO: one hero photo with heavy color grading + strong design typography (editorial_photo)\nThe key test: does it look like an ARTIST made a deliberate creative choice? If yes, it passes. If it looks like photos dropped into a template, it fails.\nEach strategy specifies its own medium \u2014 follow that medium's aesthetic rules.\n\nCORE AESTHETIC: A REAL printed postcard you would actually mail. Warm matte paper feel, ink-on-paper finish. NOT glossy, NOT metallic, NOT 3D enamel, NOT plasticky, NOT digital-screen-looking. Reference aesthetics: WPA National Park posters, mid-century travel posters (Cassandre, Steinweiss), Kinfolk/Cereal magazine editorial, museum gift shop art postcards, Charley Harper prints.\n\nTEXT LAYOUT (mandatory):\n- Headline (location OR poetic title): CONFIDENT display typeface \u2014 vintage serif, geometric sans, or refined hand-lettering. Large and unmissable. Anchored to top 20% OR bottom 20% \u2014 never floating mid-frame.\n- Date: small, subordinate, in a corner or tucked under the headline.\n- Optional micro-label: distance/elevation, small caps.\n- Max 2 typefaces total. No comic sans, no clip-art fonts, no random decorative scripts.\n- Text MUST sit on a protected zone \u2014 scrim, gradient, panel, or clean sky area. NEVER stacked over busy photo textures where it becomes illegible.\n\nHARD AVOID:\n- Raw unmodified photographs placed in panels or frames (unless strategy is editorial_photo)\n- Photo collage with harsh rectangular cuts and no artistic treatment\n- Floating disconnected text elements\n- Clip-art borders, stock corner ornaments, shutterstock-watermark look\n- Multiple competing focal points fighting for attention\n- Muddy low-contrast color palettes\n- Over-saturated Instagram-filter look\n- Text that a 60-year-old cannot read at arm's length",
-    magnet: "70x50mm portrait, 300dpi. Full-bleed. 3D ENAMEL RELIEF: Multiple raised layers separated by polished metallic lines. Back layer recessed (sky/atmosphere), mid layer raised (landmarks), front layer highest (text band, fine details). Bottom: solid raised band, location name in white bold. The magnet must look like a physical object you can pick up and feel. Pure white background, no fabric/table surface.",
+    magnet: "70x50mm portrait, 300dpi. Full-bleed. 3D ENAMEL RELIEF: Multiple raised layers separated by polished metallic lines. Back layer recessed (sky/atmosphere), mid layer raised (landmarks), front layer highest (text band, fine details). Text content and placement: see TEXT FOR THIS PRODUCT section above. The magnet must look like a physical object you can pick up and feel. Pure white background, no fabric/table surface.",
     sticker: "60x60mm, 300dpi. 4mm white die-cut stroke outline. Bold and readable at small scale. Location or short text at base. Clean design on pure white background, no mockup.",
-    pin: "38mm circle, 400dpi (output as square, design inside circle). CLOISONNE ENAMEL: Fine metal wire defines all color boundaries (visible as raised lines). Enamel fills sit slightly recessed within metal walls. Polished border ring. Location arc text at bottom. Max 6 flat enamel colors. Must look like a jewel, not a printed sticker. Pure white background, no fabric/felt surface.",
-    stamp: "30x40mm portrait, 600dpi. Perforated border. 2px black frame, 3mm white inner margin. Top: COMMEMORATIVE. Bottom: location name. Engraving/crosshatch line style. Pure white background, no mockup."
+    pin: "38mm circle, 400dpi (output as square, design inside circle). CLOISONNE ENAMEL: Fine metal wire defines all color boundaries (visible as raised lines). Enamel fills sit slightly recessed within metal walls. Polished border ring. Text content and placement: see TEXT FOR THIS PRODUCT section above. Max 6 flat enamel colors. Must look like a jewel, not a printed sticker. Pure white background, no fabric/felt surface.",
+    stamp: "30x40mm portrait, 600dpi. Perforated border. 2px black frame, 3mm white inner margin. Text content and placement: see TEXT FOR THIS PRODUCT section above. Engraving/crosshatch line style. Pure white background, no mockup."
   };
 
   const FUSIONS = {
@@ -240,7 +240,7 @@ Use that data to justify your choice in the "lettering_rationale" field.`;
       fail_conditions: [
         "no perforated edge",
         "photographic rendering instead of engraved/crosshatched",
-        "missing 'COMMEMORATIVE' or similar marking",
+        "no text or inscription visible (stamps need commemorative text of some kind)",
         "detail too coarse for stamp scale"
       ],
       complexity_target: "low", // stamp scale demands restraint
@@ -565,7 +565,8 @@ Output ONLY JSON:
       b64: p.base64,
       mime: p.mimeType || "image/jpeg",
       loc: p.location || p.title || "Unknown",
-      title: p.title || ""
+      title: p.title || "",
+      dateTaken: p.dateTaken || null
     }));
 
     const toClassify = allP.slice(0, 20);
@@ -1022,16 +1023,31 @@ ${Object.entries(LETTERING_STYLES).map(([k,v]) => "- " + k + ": " + v).join("\n"
 
 ${CULTURE_LETTERING_HINTS}
 
+TEXT PERSONALITY — each product has its OWN voice. DO NOT use the same headline on all products:
+- Postcard: POETIC, evocative. A sentence that makes someone want to visit. Magazine editorial tone. 6-10 words.
+- Magnet: BOLD, proud. City name or landmark name, big and unmissable. Tourist souvenir energy. 1-4 words.
+- Sticker: MINIMAL, graphic. 1-3 words, acronym, or city code. Must read at sticker scale.
+- Pin: FORMAL, collectible. Badge language — coordinates, "Est." year, short motto. 2-5 words.
+- Stamp: COMMEMORATIVE, classical. Location in capitals, official inscription tone. 1-3 words.
+
+If photo EXIF dates are available, use the ACTUAL photo date (not a generic trip date).
+Each product's text should feel like it was written FOR that physical medium.
+
 Output ONLY strict JSON:
 {"visual_approach":"photo-driven or route-driven",
  "color_system":{"primary":"#hex","secondary":["#hex","#hex"],"text_on_primary":"#hex","accent":"#hex","rationale":"color logic"},
  "typography":{
    "lettering_style":"EXACTLY one key from the list above (e.g., hand_lettered, deco_sans)",
    "lettering_rationale":"why this style fits this specific trip \u2264 20 words",
-   "headline_treatment":"how the headline integrates with the artwork \u2014 banner, cartouche, overlay, decorative flourishes, texture \u2264 30 words",
-   "secondary_type_style":"smaller type style for date/distance labels \u2264 15 words",
-   "required_text_elements":["location","date","distance or elevation"],
-   "suggested_headline":"English \u22648 words, poetic"
+   "headline_treatment":"how the headline integrates with the artwork \u2264 30 words",
+   "secondary_type_style":"smaller type style for date/distance labels \u2264 15 words"
+ },
+ "per_product_text":{
+   "postcard":{"headline":"poetic \u22648 words","subtext":"location \u00B7 date \u00B7 distance","text_personality":"mood description"},
+   "magnet":{"headline":"bold \u22644 words","subtext":"key landmarks","text_personality":"souvenir shop energy"},
+   "sticker":{"headline":"punchy \u22643 words or acronym","subtext":"optional","text_personality":"graphic, minimal"},
+   "pin":{"headline":"formal \u22645 words","subtext":"coordinates or Est. year","text_personality":"badge, collectible"},
+   "stamp":{"headline":"location CAPS \u22643 words","subtext":"commemorative details","text_personality":"classical inscription"}
  },
  "hero_photo_id":"filename or null",
  "primary_motif":"core visual symbol",
@@ -1039,9 +1055,13 @@ Output ONLY strict JSON:
  "mood_descriptor":"overall mood \u226410 chars",
  "product_focus":{"postcard":"visual focus","magnet":"3D enamel focus","sticker":"die-cut focus","pin":"cloisonne focus","stamp":"engraving focus"}}`;
 
+    // Collect EXIF dates from photos if available
+    const photoDates = (photoResult.topPhotos||[]).map(p => p.dateTaken).filter(Boolean);
+    const dateInfo = photoDates.length ? "\nPhoto dates (EXIF): " + [...new Set(photoDates)].join(", ") : "";
+
     const user = "Trip: " + (ctx.trip_title||"") + "\nKeywords: " + (ctx.narrative_keywords||[]).join(", ") +
       "\nMood: " + (ctx.dominant_mood||"") + " | Season: " + (ctx.season_and_weather_cues||"") +
-      "\nRoute: " + (routeViz.total_km||0).toFixed(1) + "km" +
+      "\nRoute: " + (routeViz.total_km||0).toFixed(1) + "km" + dateInfo +
       "\n\nTop Photos:\n" + photoInfo +
       "\n\nCultural Research:\n" + cultInfo + "\nUnified motifs: " + (cultural.unified_motifs||[]).join(", ") + "\nPalette: " + (cultural.recommended_palette||[]).join(", ") +
       "\n\nJourney Moments:\n" + momentInfo;
@@ -1193,7 +1213,14 @@ ${cultStr}
 Primary: ${cs.primary||""} (${cs.rationale||""})
 Secondary: ${(cs.secondary||[]).join(", ")} | Accent: ${cs.accent||""}
 Text color: ${cs.text_on_primary||"#fff"} | Motif: ${ds.primary_motif||""}
-Headline: "${ds.typography?.suggested_headline||""}"
+
+=== TEXT FOR THIS PRODUCT (${prodType}) ===
+${(() => {
+  const ppt = ds.per_product_text?.[prodType] || {};
+  return `Headline: "${ppt.headline || ds.typography?.suggested_headline || ctx.trip_title || ""}"
+Subtext: "${ppt.subtext || ""}"
+Text personality: ${ppt.text_personality || "default"}`;
+})()}
 
 === ARTISTIC LETTERING (CRITICAL \u2014 do NOT use default fonts) ===
 The headline is a CRAFTED VISUAL ELEMENT, not a default font dropped on the image.
@@ -1224,7 +1251,7 @@ ${rule}
 
 === LANGUAGE ===
 ALL text ENGLISH. No Chinese characters.
-Stamp top: "COMMEMORATIVE". Pin arc: location name.
+Text content for this product: see TEXT FOR THIS PRODUCT section above.
 
 === OUTPUT RULES ===
 Pure white (#FFFFFF) background \u2014 NO mockup surface, NO fabric/table/felt behind the product.
@@ -1408,6 +1435,52 @@ Output ONLY strict JSON:
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // Post-Generation: Batch Diversity Review
+  // ONE text call after all generation — evaluates the full set for repetition.
+  // ═══════════════════════════════════════════════════════════════════
+
+  async function _reviewBatchDiversity(results, moments, ctx) {
+    if (results.length < 3) return null;
+    try {
+      const summary = results.map((r, i) => {
+        const d = r.details || {};
+        return `[${i}] ${r.type}/${r.strategy} (score:${r.score}) — judge: "${r.details?.reason || ""}"`;
+      }).join("\n");
+
+      const momentSummary = (moments || []).map(m => m.location_name + ": " + (m.moment_caption || "")).join("; ");
+
+      const prompt = `You are reviewing a batch of ${results.length} AI-generated souvenir products for visual diversity.
+
+Trip: ${ctx.trip_title || ""}
+Available scenes: ${momentSummary}
+
+Generated products (with quality judge descriptions):
+${summary}
+
+Analyze the batch for ELEMENT REPETITION:
+1. Which visual element (subject, building, sculpture, etc.) appears most frequently across variants?
+2. How many variants feature it as a prominent element?
+3. Overall diversity score (0-100): Do the variants tell DIFFERENT stories, or do they all look similar?
+4. Which pairs of variants are too similar to each other?
+
+Output ONLY JSON:
+{"diversity_score":N,"most_repeated_element":"element name","overuse_count":N,"similar_pairs":[[0,5],[2,8]],"suggestions":["suggestion1","suggestion2"]}`;
+
+      const result = await callAI("text", { systemPrompt: null, userPrompt: prompt, temperature: 0.3 });
+      const txt = result?.text || result || "";
+      const review = _extractJson(txt);
+      if (review) {
+        console.log("[SVN] Batch diversity:", review.diversity_score + "/100,",
+          "most repeated:", review.most_repeated_element, "(" + review.overuse_count + "x)",
+          "similar pairs:", review.similar_pairs?.length || 0,
+          "suggestions:", review.suggestions);
+        return review;
+      }
+    } catch (e) { console.warn("[SVN] Batch diversity review failed:", e.message); }
+    return null;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // Main Pipeline: generate()
   // ═══════════════════════════════════════════════════════════════════
 
@@ -1581,6 +1654,17 @@ Output ONLY strict JSON:
         // Pause between product types
         if (pIdx < products.length - 1) {
           await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
+      // Post-generation batch diversity review
+      status("Reviewing batch diversity...");
+      const diversity = await _reviewBatchDiversity(results, moments, ctx);
+      if (diversity) {
+        // Attach diversity metadata to results for downstream use
+        results._diversity = diversity;
+        if (diversity.diversity_score < 50) {
+          status(`Warning: Low diversity (${diversity.diversity_score}/100) — "${diversity.most_repeated_element}" appears in ${diversity.overuse_count} variants`);
         }
       }
 

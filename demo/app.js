@@ -91,14 +91,33 @@ function _parseExifBlock(buffer) {
   // Read IFD0
   const ifd0Offset = g32(4);
   const ifd0Count = g16(ifd0Offset);
-  let gpsIFDOffset = 0;
+  let gpsIFDOffset = 0, exifIFDOffset = 0;
   for (let i = 0; i < ifd0Count; i++) {
     const entryOffset = ifd0Offset + 2 + i * 12;
     const tag = g16(entryOffset);
-    if (tag === 0x8825) { // GPSInfoIFDPointer
-      gpsIFDOffset = g32(entryOffset + 8);
-      break;
-    }
+    if (tag === 0x8825) gpsIFDOffset = g32(entryOffset + 8); // GPSInfoIFDPointer
+    if (tag === 0x8769) exifIFDOffset = g32(entryOffset + 8); // ExifIFDPointer
+  }
+  // Read DateTimeOriginal from ExifIFD (tag 0x9003)
+  if (exifIFDOffset) {
+    try {
+      const exifCount = g16(exifIFDOffset);
+      for (let i = 0; i < exifCount; i++) {
+        const eo = exifIFDOffset + 2 + i * 12;
+        if (eo + 12 > view.byteLength - tiffStart) break;
+        const tag = g16(eo);
+        if (tag === 0x9003) { // DateTimeOriginal
+          const count = g32(eo + 4);
+          const valOff = g32(eo + 8);
+          let dateStr = "";
+          for (let c = 0; c < Math.min(count - 1, 19); c++) {
+            dateStr += String.fromCharCode(view.getUint8(tiffStart + valOff + c));
+          }
+          if (dateStr.length >= 10) result.dateTaken = dateStr; // "2024:03:08 14:32:15"
+          break;
+        }
+      }
+    } catch (e) {}
   }
   if (!gpsIFDOffset) return result;
   // Read GPS IFD
@@ -1582,6 +1601,20 @@ async function _collectTripPhotosAsBase64(tripData, onProgress) {
         if (!resp.ok) continue;
         blob = await resp.blob();
       }
+      // Extract EXIF date from original blob before compression
+      let dateTaken = null;
+      try {
+        const origBuf = await blob.arrayBuffer();
+        const exifResult = extractExifGps(origBuf);
+        if (exifResult.dateTaken) {
+          // Convert "2024:03:08 14:32:15" → "March 8, 2024"
+          const parts = exifResult.dateTaken.split(/[: ]/);
+          if (parts.length >= 3) {
+            const d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+            if (!isNaN(d.getTime())) dateTaken = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+          }
+        }
+      } catch (e) {}
       // Compress to max 768px for API efficiency
       const base64 = await new Promise((resolve, reject) => {
         const img = new Image();
@@ -1602,7 +1635,8 @@ async function _collectTripPhotosAsBase64(tripData, onProgress) {
         img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("img load fail")); };
         img.src = url;
       });
-      results.push({ base64, mimeType: "image/jpeg", location: wp.title, title: ph.title || wp.title });
+      results.push({ base64, mimeType: "image/jpeg", location: wp.title, title: ph.title || wp.title, dateTaken });
+      if (dateTaken) console.log("[SVN] Photo dateTaken:", ph.title || wp.title, dateTaken);
     } catch (e) { console.warn("[SVN] Photo fetch failed:", ph.imageUrl, e.message); }
   }
   return results;
