@@ -1068,10 +1068,25 @@ Output ONLY strict JSON:
 
     const result = await callAI("text", { systemPrompt: sys, userPrompt: user, temperature: 0.7 });
     const txt = result?.text || result || "";
-    return _extractJson(txt) || {
+    const ds = _extractJson(txt) || {
       visual_approach:"photo-driven", color_system:{primary:"#2563eb",secondary:["#f59e0b"],text_on_primary:"#fff",accent:"#ef4444",rationale:"default"},
-      typography:{lettering_style:"hand_lettered",lettering_rationale:"default fallback",headline_treatment:"integrated with illustration",secondary_type_style:"small caps",suggested_headline:ctx.trip_title||"Journey"}, primary_motif:"landscape", secondary_motifs:[], mood_descriptor:"adventure", product_focus:{}
+      typography:{lettering_style:"hand_lettered",lettering_rationale:"default fallback",headline_treatment:"integrated with illustration",secondary_type_style:"small caps"},
+      primary_motif:"landscape", secondary_motifs:[], mood_descriptor:"adventure", product_focus:{}
     };
+    // Ensure per_product_text exists with sensible defaults
+    if (!ds.per_product_text) {
+      const name = ctx.trip_title || ctx.key_locations?.[0]?.name || "Journey";
+      const city = ctx._geoNames ? Object.values(ctx._geoNames).find(g => g.city)?.city : "";
+      ds.per_product_text = {
+        postcard: { headline: name, subtext: city, text_personality: "poetic editorial" },
+        magnet:   { headline: (city || name).toUpperCase().split(/[,\s]+/)[0], subtext: "", text_personality: "bold souvenir" },
+        sticker:  { headline: (city || name).slice(0, 5).toUpperCase(), subtext: "", text_personality: "minimal graphic" },
+        pin:      { headline: city || name, subtext: "Est. " + new Date().getFullYear(), text_personality: "formal badge" },
+        stamp:    { headline: (city || name).toUpperCase(), subtext: city, text_personality: "commemorative classical" }
+      };
+      console.warn("[SVN] per_product_text missing from AI output, using generated defaults");
+    }
+    return ds;
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -1534,6 +1549,14 @@ Output ONLY JSON:
       status("Agent 7/8: Creating design system...");
       const ds = await _designSystem(ctx, photoResult, cultural, moments, routeViz, status);
       console.log("[SVN] Design system:", ds.visual_approach, ds.primary_motif, ds.color_system?.primary);
+      console.log("[SVN] Lettering:", ds.typography?.lettering_style, "|", ds.typography?.lettering_rationale);
+      if (ds.per_product_text) {
+        for (const [pt, txt] of Object.entries(ds.per_product_text)) {
+          console.log("[SVN] Text for", pt + ":", JSON.stringify(txt));
+        }
+      } else {
+        console.warn("[SVN] WARNING: per_product_text is MISSING from design system output!");
+      }
 
       // ── Agent 8: Generate Images ──
       status("Agent 8/8: Generating souvenir images...");
