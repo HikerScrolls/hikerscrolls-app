@@ -810,9 +810,17 @@ Output ONLY JSON:
           };
           console.log("[SVN] Assign:", prodType, stratName, "→ SINGLE:", primary.loc, `(${primaryCat})`);
         } else {
-          // Blend: primary + 1-2 supporting from DIFFERENT categories
+          // Blend: primary + 1-2 supporting from DIFFERENT categories.
+          // Prefer ATMOSPHERE/DETAIL as supporting (softer, won't fight the hero).
+          // Avoid LANDMARK as supporting if primary is not LANDMARK (too visually dominant).
+          const softCategories = ["ATMOSPHERE", "DETAIL", "LANDSCAPE"];
           const supporting = pool
             .filter(p => p._idx !== primary._idx && p.category !== primaryCat)
+            .sort((a, b) => {
+              const aIsSoft = softCategories.indexOf(a.category);
+              const bIsSoft = softCategories.indexOf(b.category);
+              return (aIsSoft === -1 ? 99 : aIsSoft) - (bIsSoft === -1 ? 99 : bIsSoft);
+            })
             .slice(0, 2);
           assignments[prodType][stratName] = {
             photos: [primary, ...supporting],
@@ -1242,10 +1250,9 @@ Each variant must offer something genuinely different.`;
     const assignedPhotos = heroAssignment?.photos || [];
 
     if (mode === "single" && assignedPhotos.length > 0) {
-      // Single mode: attach hero photo + 1 supporting from different category
+      // Single mode: ONLY the hero photo. No supporting photos.
+      // This prevents visually dominant elements from other photos bleeding into the design.
       if (assignedPhotos[0]?.b64) parts.push({ inlineData: { mimeType: assignedPhotos[0].mime || "image/jpeg", data: assignedPhotos[0].b64 } });
-      const support = top.find(p => p._idx !== assignedPhotos[0]?._idx && p.category !== heroCategory);
-      if (support?.b64) parts.push({ inlineData: { mimeType: support.mime || "image/jpeg", data: support.b64 } });
     } else if (mode === "blend" && assignedPhotos.length > 0) {
       // Blend mode: attach all assigned photos (primary + supporting)
       for (const p of assignedPhotos) {
