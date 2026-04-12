@@ -687,7 +687,7 @@ function showCreationWizard() {
     render();
 
     const newLocs = new Map(); // key → {lat, lng, title, photos[], gpsSource}
-
+    const failedPhotos = []; // photos AI couldn't identify
     let exifCount = 0, aiCount = 0;
     for (let i = 0; i < _aiPhotos.length; i++) {
       const ph = _aiPhotos[i];
@@ -727,20 +727,43 @@ function showCreationWizard() {
 
           const text = result.text || "";
           const match = text.match(/\{[\s\S]*\}/);
+          let added = false;
           if (match) {
-            const parsed = JSON.parse(match[0]);
-            if (parsed.lat && parsed.lng) {
-              const key = parsed.locationName || (parsed.lat.toFixed(3) + "," + parsed.lng.toFixed(3));
-              if (!newLocs.has(key)) {
-                newLocs.set(key, { lat: parsed.lat, lng: parsed.lng, title: parsed.locationName || "AI Location", photos: [], gpsSource: "ai-" + (parsed.confidence || "medium") });
+            try {
+              const parsed = JSON.parse(match[0]);
+              if (parsed.lat && parsed.lng) {
+                const key = parsed.locationName || (parsed.lat.toFixed(3) + "," + parsed.lng.toFixed(3));
+                if (!newLocs.has(key)) {
+                  newLocs.set(key, { lat: parsed.lat, lng: parsed.lng, title: parsed.locationName || "AI Location", photos: [], gpsSource: "ai-" + (parsed.confidence || "medium") });
+                }
+                newLocs.get(key).photos.push({ id: ph.id, title: ph.title });
+                added = true;
               }
-              newLocs.get(key).photos.push({ id: ph.id, title: ph.title });
-            }
+            } catch (e) { console.warn("[SVN] JSON parse failed:", e.message); }
+          }
+          if (!added) {
+            console.warn("[SVN] AI couldn't identify photo, adding to Unknown:", ph.title);
+            failedPhotos.push({ id: ph.id, title: ph.title });
           }
         } catch (e) {
           console.warn("AI analysis failed for", ph.title, e);
+          failedPhotos.push({ id: ph.id, title: ph.title });
         }
       }
+    }
+
+    // Add failed photos to an "Unknown Location" group
+    if (failedPhotos.length > 0) {
+      let fallbackLat = 0, fallbackLng = 0;
+      if (gpxData && gpxData.trackPoints.length > 0) {
+        const mid = gpxData.trackPoints[Math.floor(gpxData.trackPoints.length / 2)];
+        fallbackLat = mid.lat; fallbackLng = mid.lng;
+      } else if (newLocs.size > 0) {
+        // Use first identified location as fallback
+        const first = newLocs.values().next().value;
+        fallbackLat = first.lat; fallbackLng = first.lng;
+      }
+      newLocs.set("__unknown__", { lat: fallbackLat, lng: fallbackLng, title: "Unknown Location", photos: failedPhotos, gpsSource: "ai-unknown" });
     }
 
     // Convert to locations array
@@ -789,7 +812,9 @@ function showCreationWizard() {
     }
 
     _aiAnalyzing = false;
-    _aiStatus = "Done! " + locations.length + " locations (" + exifCount + " GPS, " + aiCount + " AI)";
+    let statusMsg = "Done! " + locations.length + " locations (" + exifCount + " GPS, " + aiCount + " AI";
+    if (failedPhotos.length > 0) statusMsg += ", " + failedPhotos.length + " unidentified";
+    _aiStatus = statusMsg + ")";
     render();
   }
 
