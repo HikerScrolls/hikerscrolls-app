@@ -305,7 +305,7 @@ module.exports = async function handler(req, res) {
     let { capability, provider, model, userApiKey, payload } = req.body;
     // Default models per provider + capability
     const DEFAULT_MODELS = {
-      gemini: { text: "gemini-2.0-flash", vision: "gemini-2.0-flash", image: "gemini-3.1-flash-image-preview" },
+      gemini: { text: "gemini-2.0-flash", vision: "gemini-3.1-flash-image-preview", image: "gemini-3.1-flash-image-preview" },
       claude: { text: "claude-sonnet-4-6" },
       qwen: { text: "qwen-plus", vision: "qwen3.5-flash", image: "qwen-image-2.0-pro" },
       openai: { text: "gpt-4o-mini", vision: "gpt-4o-mini", image: "dall-e-3" },
