@@ -963,8 +963,13 @@ function showCreationWizard() {
   // ══════════════════════════════════════════════════════════
   // ── Step 3: Upload & Assign Photos ──
   // ══════════════════════════════════════════════════════════
+  // Touch device detection
+  const _isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+  let _selectedPhotoForMove = null; // {photoId, srcLocId}
+  let _selectedLocId = null;
+
   function renderStep3(ct) {
-    _el("p", ct, { text: "Upload photos and assign them to locations. Drag photos between pools, or drop onto a location.", style: "color:#64748b;font-size:0.85rem;margin:0 0 12px;" });
+    _el("p", ct, { text: _isTouch ? "Tap a photo to select it, then tap a location to move it. Or upload new photos." : "Drag photos between pools. Click a location on the map to select it.", style: "color:#64748b;font-size:0.85rem;margin:0 0 12px;" });
 
     // Global upload zone
     const uploadZone = _el("div", ct, { style: "border:2px dashed #d1d5db;border-radius:10px;padding:14px;text-align:center;cursor:pointer;background:#fafafa;margin-bottom:14px;" });
@@ -976,11 +981,31 @@ function showCreationWizard() {
     uploadZone.ondragleave = () => { uploadZone.style.borderColor = "#d1d5db"; uploadZone.style.background = "#fafafa"; };
     uploadZone.ondrop = async (e) => { e.preventDefault(); uploadZone.style.borderColor = "#d1d5db"; uploadZone.style.background = "#fafafa"; await handlePhotoUpload(e.dataTransfer.files, null); render(); };
 
-    // Map (smaller)
+    // Map with clickable markers
     if (gpxData) {
       const mapWrap = _el("div", ct);
-      initLeafletMap(mapWrap, { height: 220 });
-      refreshMapMarkers();
+      const map = initLeafletMap(mapWrap, { height: 220 });
+      // Use clickable markers (not draggable in step 3)
+      wizardMarkers.forEach(m => map.removeLayer(m));
+      wizardMarkers = [];
+      locations.forEach((loc, i) => {
+        const isSel = loc.id === _selectedLocId;
+        const color = isSel ? "#2563eb" : "#dc2626";
+        const radius = isSel ? 11 : 8;
+        const marker = L.circleMarker([loc.lat, loc.lng], { radius, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.9 }).addTo(map);
+        marker.bindTooltip(loc.title || ("Location " + (i + 1)), { direction: "top", offset: [0, -10] });
+        marker.on("click", () => {
+          _selectedLocId = loc.id;
+          map.flyTo([loc.lat, loc.lng], 14, { duration: 0.5 });
+          // Scroll to corresponding pool
+          setTimeout(() => {
+            const el = document.getElementById("pool-" + loc.id);
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 100);
+          render();
+        });
+        wizardMarkers.push(marker);
+      });
     }
 
     // Location photo pools
@@ -989,54 +1014,117 @@ function showCreationWizard() {
       return;
     }
 
-    const poolContainer = _el("div", ct, { style: "max-height:320px;overflow-y:auto;" });
-    locations.forEach((loc, li) => {
-      const row = _el("div", poolContainer, { style: "display:flex;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;overflow:hidden;" });
+    // Build "Unassigned" pseudo-location
+    const allInLocs = new Set();
+    locations.forEach(l => l.photos.forEach(p => allInLocs.add(p.id)));
 
-      // Left: location name
-      const nameCell = _el("div", row, { style: "width:140px;padding:10px 12px;background:#f8fafc;border-right:1px solid #e5e7eb;flex-shrink:0;cursor:pointer;" });
+    const poolContainer = _el("div", ct, { style: "max-height:340px;overflow-y:auto;border:1px solid #f1f5f9;border-radius:8px;padding:4px;" });
+
+    const renderLocPool = (loc, isUnassigned) => {
+      const row = _el("div", poolContainer, { style: "display:flex;border:1px solid " + (loc.id === _selectedLocId ? "#2563eb" : "#e5e7eb") + ";border-radius:8px;margin-bottom:8px;overflow:hidden;background:" + (loc.id === _selectedLocId ? "#eff6ff" : (isUnassigned ? "#fef3c7" : "white")) + ";" });
+      row.id = "pool-" + loc.id;
+
+      // Left: location name (clickable)
+      const nameCell = _el("div", row, { style: "width:140px;padding:10px 12px;background:" + (isUnassigned ? "#fef3c7" : "#f8fafc") + ";border-right:1px solid #e5e7eb;flex-shrink:0;cursor:pointer;" });
+      nameCell.onclick = () => {
+        // Touch: complete photo move
+        if (_isTouch && _selectedPhotoForMove) {
+          movePhoto(_selectedPhotoForMove.photoId, _selectedPhotoForMove.srcLocId, loc.id);
+          _selectedPhotoForMove = null;
+          render();
+          return;
+        }
+        // Click: select location + flyTo on map
+        _selectedLocId = loc.id;
+        if (wizardMap && !isUnassigned) wizardMap.flyTo([loc.lat, loc.lng], 14, { duration: 0.5 });
+        render();
+      };
       _el("div", nameCell, { text: loc.title, style: "font-size:0.8rem;font-weight:600;color:#1e293b;word-break:break-word;" });
       _el("div", nameCell, { text: loc.photos.length + " photo" + (loc.photos.length !== 1 ? "s" : ""), style: "font-size:0.7rem;color:#94a3b8;margin-top:2px;" });
 
-      // Right: photo pool (droppable)
-      const pool = _el("div", row, { style: "flex:1;display:flex;flex-wrap:wrap;gap:6px;padding:8px;min-height:60px;align-items:center;align-content:flex-start;" });
+      // Right: photo pool
+      const pool = _el("div", row, { style: "flex:1;display:flex;flex-wrap:wrap;gap:6px;padding:8px;min-height:60px;align-items:flex-start;align-content:flex-start;" });
       pool.ondragover = (e) => { e.preventDefault(); pool.style.background = "#f0faf4"; };
       pool.ondragleave = () => { pool.style.background = ""; };
       pool.ondrop = (e) => {
         e.preventDefault(); pool.style.background = "";
         const photoId = e.dataTransfer.getData("text/plain");
         const srcLocId = e.dataTransfer.getData("application/x-src-loc");
-        if (photoId) movePhoto(photoId, srcLocId, loc.id);
+        if (photoId) {
+          if (isUnassigned) movePhotoToUnassigned(photoId, srcLocId);
+          else movePhoto(photoId, srcLocId, loc.id);
+        }
         render();
       };
 
-      // Drop zone for new photos to this location
       const locFi = _el("input", pool); locFi.type = "file"; locFi.accept = "image/*"; locFi.multiple = true; locFi.style.display = "none";
-      locFi.onchange = async (e) => { await handlePhotoUpload(e.target.files, loc); render(); };
+      locFi.onchange = async (e) => { await handlePhotoUpload(e.target.files, isUnassigned ? null : loc); render(); };
 
       if (loc.photos.length === 0) {
-        const hint = _el("span", pool, { text: "Drop photos or click +", style: "font-size:0.75rem;color:#94a3b8;cursor:pointer;" });
-        hint.onclick = () => locFi.click();
+        const hint = _el("span", pool, { text: isUnassigned ? "Photos with no location" : "Drop photos or click +", style: "font-size:0.75rem;color:#94a3b8;cursor:pointer;align-self:center;" });
+        if (!isUnassigned) hint.onclick = () => locFi.click();
       }
 
       loc.photos.forEach((ph, pi) => {
-        const thumb = _el("div", pool, { style: "width:56px;height:56px;border-radius:4px;background:#e5e7eb;position:relative;overflow:hidden;flex-shrink:0;cursor:grab;" });
-        thumb.draggable = true;
-        thumb.ondragstart = (e) => { e.dataTransfer.setData("text/plain", ph.id); e.dataTransfer.setData("application/x-src-loc", loc.id); thumb.style.opacity = "0.4"; };
-        thumb.ondragend = () => { thumb.style.opacity = "1"; };
-        // Load thumbnail
+        const isSelectedForMove = _selectedPhotoForMove?.photoId === ph.id;
+        const thumb = _el("div", pool, { style: "width:64px;height:64px;border-radius:4px;background:#e5e7eb;position:relative;overflow:hidden;flex-shrink:0;cursor:" + (_isTouch ? "pointer" : "grab") + ";border:" + (isSelectedForMove ? "2px solid #2563eb" : "1px solid #e5e7eb") + ";transform:" + (isSelectedForMove ? "scale(1.05)" : "none") + ";transition:all 0.15s;" });
+        if (!_isTouch) {
+          thumb.draggable = true;
+          thumb.ondragstart = (e) => { e.dataTransfer.setData("text/plain", ph.id); e.dataTransfer.setData("application/x-src-loc", loc.id); thumb.style.opacity = "0.4"; };
+          thumb.ondragend = () => { thumb.style.opacity = "1"; };
+        } else {
+          // Touch: tap to select
+          thumb.onclick = (e) => {
+            e.stopPropagation();
+            if (_selectedPhotoForMove?.photoId === ph.id) {
+              _selectedPhotoForMove = null;
+            } else {
+              _selectedPhotoForMove = { photoId: ph.id, srcLocId: loc.id };
+            }
+            render();
+          };
+        }
+
         getPhotoBlobUrl(ph.id).then(url => { if (url) { thumb.style.backgroundImage = "url(" + url + ")"; thumb.style.backgroundSize = "cover"; thumb.style.backgroundPosition = "center"; } });
-        // Delete button
-        const pDel = _el("div", thumb, { text: "\u00d7", style: "position:absolute;top:1px;right:1px;width:16px;height:16px;border-radius:50%;background:rgba(239,68,68,0.85);color:white;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity 0.2s;" });
-        thumb.onmouseenter = () => { pDel.style.opacity = "1"; };
-        thumb.onmouseleave = () => { pDel.style.opacity = "0"; };
+
+        // Filename overlay (always visible at bottom)
+        const nameOverlay = _el("div", thumb, { text: ph.title || "", style: "position:absolute;bottom:0;left:0;right:0;padding:1px 3px;background:rgba(0,0,0,0.6);color:white;font-size:8px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" });
+
+        // Delete button (always visible on touch, hover on desktop)
+        const pDel = _el("div", thumb, { text: "\u00d7", style: "position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(239,68,68,0.9);color:white;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:" + (_isTouch ? "1" : "0") + ";transition:opacity 0.2s;font-weight:700;" });
+        if (!_isTouch) {
+          thumb.onmouseenter = () => { pDel.style.opacity = "1"; };
+          thumb.onmouseleave = () => { pDel.style.opacity = "0"; };
+        }
         pDel.onclick = (e) => { e.stopPropagation(); loc.photos.splice(pi, 1); deletePhotoFromIDB(ph.id).catch(() => {}); render(); };
       });
 
       // Add button
-      const addPhBtn = _el("div", pool, { text: "+", style: "width:56px;height:56px;border-radius:4px;border:1px dashed #d1d5db;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#94a3b8;font-size:1.2rem;flex-shrink:0;" });
-      addPhBtn.onclick = () => locFi.click();
-    });
+      if (!isUnassigned) {
+        const addPhBtn = _el("div", pool, { text: "+", style: "width:64px;height:64px;border-radius:4px;border:1px dashed #d1d5db;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#94a3b8;font-size:1.4rem;flex-shrink:0;" });
+        addPhBtn.onclick = () => locFi.click();
+      }
+    };
+
+    locations.forEach(loc => renderLocPool(loc, false));
+
+    // Unassigned pool at the bottom
+    if (!locations.find(l => l.id === "__unassigned__")) {
+      // Always show unassigned row (even if empty) to allow dragging photos out
+      const unassignedLoc = { id: "__unassigned__", title: "Unassigned", photos: [], lat: 0, lng: 0 };
+      renderLocPool(unassignedLoc, true);
+    }
+  }
+
+  function movePhotoToUnassigned(photoId, srcLocId) {
+    // Remove from source location entirely
+    for (const loc of locations) {
+      const idx = loc.photos.findIndex(p => p.id === photoId);
+      if (idx >= 0) { loc.photos.splice(idx, 1); break; }
+    }
+    // Photo will appear as "missing" but is preserved in IndexedDB
+    // For now, just delete it since we don't have a separate unassigned store
+    deletePhotoFromIDB(photoId).catch(() => {});
   }
 
   function movePhoto(photoId, srcLocId, destLocId) {
@@ -1180,6 +1268,55 @@ function showCreationWizard() {
   // ══════════════════════════════════════════════════════════
   // ── Step 5: Review & Create ──
   // ══════════════════════════════════════════════════════════
+  // Generate markdown for review preview
+  function generateMarkdownPreview() {
+    let md = "---\n";
+    md += "type: hiking-journal\n";
+    md += "version: 5\n";
+    md += "name: " + (config.name || "") + "\n";
+    md += "date: " + (config.date || "") + "\n";
+    if (config.endDate) md += "end_date: " + config.endDate + "\n";
+    md += "region: " + (config.region || "") + "\n";
+    if (config.description) md += "description: " + config.description + "\n";
+    md += "template: " + config.template + "\n";
+    md += "map_style: " + config.mapStyle + "\n";
+    if (gpxData) {
+      md += "distance_km: " + gpxData.totalDistanceKm + "\n";
+      md += "elevation_gain: " + gpxData.elevationGainM + "\n";
+      md += "elevation_loss: " + gpxData.elevationLossM + "\n";
+    }
+    md += "---\n\n";
+    md += "# " + (config.name || "Untitled Trip") + "\n\n";
+    if (config.description) md += config.description + "\n\n";
+    if (sections.length > 0) {
+      sections.forEach(sec => {
+        md += "## " + sec.title + "\n\n";
+        if (sec.text) md += sec.text + "\n\n";
+        const secLocs = locations.filter(l => sec.locationIds.includes(l.id));
+        secLocs.forEach(loc => {
+          md += "### " + loc.title + "\n\n";
+          if (loc.description) md += loc.description + "\n\n";
+          if (loc.photos.length > 0) {
+            loc.photos.forEach(p => { md += "![" + (p.title || "photo") + "](photos/" + (p.title || p.id) + ".jpg)\n"; });
+            md += "\n";
+          }
+        });
+      });
+    } else {
+      locations.forEach(loc => {
+        md += "## " + loc.title + "\n\n";
+        if (loc.description) md += loc.description + "\n\n";
+        if (loc.photos.length > 0) {
+          loc.photos.forEach(p => { md += "![" + (p.title || "photo") + "](photos/" + (p.title || p.id) + ".jpg)\n"; });
+          md += "\n";
+        }
+      });
+    }
+    return md;
+  }
+
+  let _showMarkdownPreview = false;
+
   function renderStep5(ct) {
     const totalPhotos = locations.reduce((s, l) => s + l.photos.length, 0);
 
@@ -1198,29 +1335,48 @@ function showCreationWizard() {
       ${gpxData ? "<div>Distance: <strong>" + gpxData.totalDistanceKm + " km</strong></div>" : ""}
     `;
 
-    // Outline
-    _el("h3", ct, { text: "Journal Structure", style: "font-size:0.9rem;font-weight:600;color:#1e293b;margin:16px 0 8px;" });
-    const outline = _el("div", ct, { style: "max-height:280px;overflow-y:auto;" });
+    // Header row with markdown toggle
+    const headerRow = _el("div", ct, { style: "display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px;" });
+    _el("h3", headerRow, { text: "Journal Structure", style: "font-size:0.9rem;font-weight:600;color:#1e293b;margin:0;" });
+    const mdToggleBtn = _el("button", headerRow, { text: _showMarkdownPreview ? "Hide Markdown" : "Show Markdown", style: "padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;background:white;color:#475569;cursor:pointer;font-size:0.72rem;" });
+    mdToggleBtn.onclick = () => { _showMarkdownPreview = !_showMarkdownPreview; render(); };
 
-    if (sections.length > 0) {
-      sections.forEach(sec => {
-        const secRow = _el("div", outline, { style: "padding:6px 0;border-bottom:1px solid #f1f5f9;" });
-        _el("div", secRow, { text: "### " + sec.title, style: "font-size:0.85rem;font-weight:600;color:#1e293b;" });
-        const secLocs = locations.filter(l => sec.locationIds.includes(l.id));
-        secLocs.forEach(loc => {
-          _el("div", secRow, { text: "\u00a0\u00a0\u00a0\u00a0\u{1F4CD} " + loc.title + " (" + loc.photos.length + " photos)", style: "font-size:0.78rem;color:#64748b;margin:2px 0;" });
-        });
-        if (sec.text) _el("div", secRow, { text: "\u00a0\u00a0\u00a0\u00a0\u270D\uFE0F " + sec.text.slice(0, 60) + (sec.text.length > 60 ? "..." : ""), style: "font-size:0.75rem;color:#94a3b8;font-style:italic;" });
-      });
+    if (_showMarkdownPreview) {
+      const mdBox = _el("pre", ct, { style: "background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:0.72rem;line-height:1.5;max-height:300px;overflow-y:auto;font-family:'SF Mono','Cascadia Code',monospace;white-space:pre-wrap;" });
+      mdBox.textContent = generateMarkdownPreview();
     } else {
-      locations.forEach(loc => {
-        _el("div", outline, { text: "\u2022 " + loc.title + " \u2014 " + loc.photos.length + " photos", style: "font-size:0.8rem;color:#475569;padding:4px 0;border-bottom:1px solid #f1f5f9;" });
-      });
+      const outline = _el("div", ct, { style: "max-height:280px;overflow-y:auto;border:1px solid #f1f5f9;border-radius:8px;padding:8px 12px;background:#fafafa;" });
+
+      // Hierarchical: route name (if GPX) → sections → locations
+      if (gpxData && gpxData.name) {
+        const routeRow = _el("div", outline, { style: "padding:4px 0;border-bottom:1px solid #e5e7eb;margin-bottom:6px;" });
+        _el("div", routeRow, { text: "## " + gpxData.name, style: "font-size:0.85rem;font-weight:700;color:#1b4332;" });
+        _el("div", routeRow, { text: gpxData.totalDistanceKm + " km \u00b7 \u2191" + gpxData.elevationGainM + "m \u00b7 " + locations.length + " locations", style: "font-size:0.7rem;color:#64748b;margin-top:2px;" });
+      }
+
+      if (sections.length > 0) {
+        sections.forEach(sec => {
+          const secRow = _el("div", outline, { style: "padding:6px 0;border-bottom:1px solid #f1f5f9;margin-left:" + (gpxData && gpxData.name ? "12px" : "0") + ";" });
+          _el("div", secRow, { text: "### " + sec.title, style: "font-size:0.82rem;font-weight:600;color:#1e293b;" });
+          const secLocs = locations.filter(l => sec.locationIds.includes(l.id));
+          secLocs.forEach(loc => {
+            _el("div", secRow, { text: "\u00a0\u00a0\u00a0\u00a0\u00b7 " + loc.title + " (" + loc.photos.length + " photo" + (loc.photos.length !== 1 ? "s" : "") + ")", style: "font-size:0.76rem;color:#64748b;margin:2px 0;" });
+          });
+          if (sec.text) _el("div", secRow, { text: "\u00a0\u00a0\u00a0\u00a0" + sec.text.slice(0, 80) + (sec.text.length > 80 ? "..." : ""), style: "font-size:0.72rem;color:#94a3b8;font-style:italic;margin-top:3px;" });
+        });
+      } else {
+        locations.forEach(loc => {
+          _el("div", outline, { text: "\u00b7 " + loc.title + " \u2014 " + loc.photos.length + " photo" + (loc.photos.length !== 1 ? "s" : ""), style: "font-size:0.8rem;color:#475569;padding:4px 0;margin-left:" + (gpxData && gpxData.name ? "12px" : "0") + ";" });
+        });
+      }
+
+      if (locations.length === 0 && sections.length === 0) {
+        _el("div", outline, { text: "Empty trip. You can still create it and edit later.", style: "text-align:center;padding:16px;color:#94a3b8;font-size:0.85rem;" });
+      }
     }
 
-    if (locations.length === 0 && sections.length === 0) {
-      _el("div", outline, { text: "Empty trip. You can still create it and edit later.", style: "text-align:center;padding:16px;color:#94a3b8;font-size:0.85rem;" });
-    }
+    // Edit hint
+    _el("div", ct, { text: "You can edit your trip later by opening it from the sidebar.", style: "font-size:0.72rem;color:#94a3b8;text-align:center;margin-top:12px;font-style:italic;" });
   }
 
   // ══════════════════════════════════════════════════════════
