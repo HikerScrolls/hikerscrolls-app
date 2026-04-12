@@ -711,7 +711,14 @@ function showCreationWizard() {
         // Try AI vision analysis
         try {
           const compressed = await compressPhoto(ph.file);
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(compressed)));
+          // Convert to base64 in chunks to avoid stack overflow on large images
+          const bytes = new Uint8Array(compressed);
+          let binary = "";
+          const chunkSize = 0x8000;
+          for (let off = 0; off < bytes.length; off += chunkSize) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(off, off + chunkSize));
+          }
+          const base64 = btoa(binary);
 
           // Build geographic constraint from GPX if available
           let geoHint = "";
