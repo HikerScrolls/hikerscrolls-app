@@ -216,24 +216,28 @@ async function deletePhotoFromIDB(id) {
 }
 
 async function compressPhoto(file) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      URL.revokeObjectURL(url);
-      const MAX = 1200;
-      let w = img.width, h = img.height;
-      if (w > MAX || h > MAX) {
-        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-        else { w = Math.round(w * MAX / h); h = MAX; }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      canvas.toBlob(blob => {
-        blob.arrayBuffer().then(buf => resolve(buf));
-      }, "image/jpeg", 0.8);
+      try {
+        URL.revokeObjectURL(url);
+        const MAX = 1200;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        canvas.toBlob(blob => {
+          if (!blob) { reject(new Error("toBlob returned null")); return; }
+          blob.arrayBuffer().then(buf => resolve(buf)).catch(reject);
+        }, "image/jpeg", 0.8);
+      } catch (e) { reject(e); }
     };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed: " + file.name)); };
     img.src = url;
   });
 }
