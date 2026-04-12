@@ -371,17 +371,66 @@ function showCreationWizard() {
     return wizardMap;
   }
 
+  // Nominatim reverse geocoding
+  async function reverseGeocode(lat, lng) {
+    try {
+      const url = "https://nominatim.openstreetmap.org/reverse?lat=" + lat + "&lon=" + lng + "&format=json&zoom=18&addressdetails=1";
+      const r = await fetch(url, { headers: { "User-Agent": "HikerScrolls-Web/1.0" } });
+      if (!r.ok) return null;
+      const d = await r.json();
+      const a = d.address || {};
+      return d.name || a.tourism || a.building || a.amenity || a.attraction || a.neighbourhood || a.suburb || a.city || a.town || a.village || null;
+    } catch { return null; }
+  }
+
   function refreshMapMarkers() {
     if (!wizardMap) return;
     wizardMarkers.forEach(m => wizardMap.removeLayer(m));
     wizardMarkers = [];
-    const colors = { exif: "#2563eb", "ai-high": "#10b981", "ai-medium": "#f59e0b", "ai-unknown": "#6b7280", manual: "#dc2626" };
+    const colors = { exif: "#2563eb", "ai-high": "#10b981", "ai-medium": "#f59e0b", "ai-low": "#ef4444", "ai-unknown": "#6b7280", manual: "#dc2626" };
     locations.forEach((loc, i) => {
       const color = colors[loc.gpsSource] || "#dc2626";
-      const marker = L.circleMarker([loc.lat, loc.lng], {
-        radius: 8, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.9
-      }).addTo(wizardMap);
+      // Use draggable DivIcon marker for AI mode, circleMarker for manual
+      const iconHtml = "<div style='width:18px;height:18px;border-radius:50%;background:" + color + ";border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);'></div>";
+      const icon = L.divIcon({ html: iconHtml, className: "hj-loc-marker", iconSize: [18, 18], iconAnchor: [9, 9] });
+      const marker = L.marker([loc.lat, loc.lng], { icon, draggable: true }).addTo(wizardMap);
       marker.bindTooltip(loc.title || "Location " + (i + 1), { direction: "top", offset: [0, -10] });
+
+      // Photo popup on hover (up to 4 thumbnails)
+      if (loc.photos && loc.photos.length > 0) {
+        const popupContent = document.createElement("div");
+        popupContent.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;max-width:200px;";
+        const showPhotos = loc.photos.slice(0, 4);
+        for (const ph of showPhotos) {
+          const thumb = document.createElement("div");
+          thumb.style.cssText = "width:44px;height:44px;border-radius:4px;background:#e5e7eb;background-size:cover;background-position:center;flex-shrink:0;";
+          getPhotoBlobUrl(ph.id).then(url => { if (url) thumb.style.backgroundImage = "url(" + url + ")"; });
+          popupContent.appendChild(thumb);
+        }
+        if (loc.photos.length > 4) {
+          const more = document.createElement("div");
+          more.style.cssText = "width:44px;height:44px;border-radius:4px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#64748b;font-weight:600;flex-shrink:0;";
+          more.textContent = "+" + (loc.photos.length - 4);
+          popupContent.appendChild(more);
+        }
+        marker.bindPopup(popupContent, { offset: [0, -8], closeButton: false, autoClose: true });
+        marker.on("mouseover", () => marker.openPopup());
+        marker.on("mouseout", () => marker.closePopup());
+      }
+
+      // Drag handler: update coords + auto-rename
+      marker.on("dragend", async (e) => {
+        const newLatLng = e.target.getLatLng();
+        loc.lat = newLatLng.lat;
+        loc.lng = newLatLng.lng;
+        // Auto-rename via Nominatim
+        try {
+          const name = await reverseGeocode(loc.lat, loc.lng);
+          if (name) loc.title = name;
+        } catch {}
+        render();
+      });
+
       wizardMarkers.push(marker);
     });
   }
@@ -505,6 +554,8 @@ function showCreationWizard() {
   let _aiPhotos = []; // {id, file, buffer, exif, title}
   let _aiAnalyzing = false;
   let _aiStatus = "";
+  let _clusterRadiusM = 100; // meters
+  let _selectedLocs = new Set(); // location IDs for merge
 
   function renderStep2(ct) {
     // Mode selector
@@ -591,6 +642,19 @@ function showCreationWizard() {
       _el("hr", ct, { style: "border:none;border-top:1px solid #e5e7eb;margin:12px 0;" });
       _el("div", ct, { text: "" + locations.length + " locations identified", style: "font-size:0.85rem;font-weight:600;color:#2d6a4f;margin-bottom:10px;" });
 
+      // Cluster controls bar
+      const clusterBar = _el("div", ct, { style: "display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;font-size:0.78rem;" });
+      _el("span", clusterBar, { text: "Cluster radius:", style: "color:#64748b;" });
+      const radiusInput = _el("input", clusterBar, { style: "width:70px;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:0.78rem;" });
+      radiusInput.type = "number"; radiusInput.min = "0"; radiusInput.max = "5000"; radiusInput.step = "25"; radiusInput.value = _clusterRadiusM;
+      radiusInput.oninput = () => { _clusterRadiusM = parseInt(radiusInput.value) || 0; };
+      _el("span", clusterBar, { text: "m", style: "color:#94a3b8;" });
+      const clusterBtn = _el("button", clusterBar, { text: "Cluster Nearby", style: "padding:5px 12px;border:1px solid #2d6a4f;border-radius:6px;background:#f0faf4;color:#2d6a4f;cursor:pointer;font-size:0.78rem;font-weight:500;" });
+      clusterBtn.onclick = () => { clusterLocationsByDistance(_clusterRadiusM); render(); };
+      _el("span", clusterBar, { text: "|", style: "color:#cbd5e1;" });
+      const mergeBtn = _el("button", clusterBar, { text: "Merge Selected (" + _selectedLocs.size + ")", style: "padding:5px 12px;border:1px solid " + (_selectedLocs.size >= 2 ? "#2563eb" : "#d1d5db") + ";border-radius:6px;background:" + (_selectedLocs.size >= 2 ? "#eff6ff" : "#f9fafb") + ";color:" + (_selectedLocs.size >= 2 ? "#2563eb" : "#94a3b8") + ";cursor:" + (_selectedLocs.size >= 2 ? "pointer" : "not-allowed") + ";font-size:0.78rem;font-weight:500;" });
+      mergeBtn.onclick = () => { if (_selectedLocs.size >= 2) { mergeSelectedLocations(); render(); } };
+
       // Split: map + list
       const split = _el("div", ct, { style: "display:flex;gap:12px;" });
 
@@ -624,13 +688,14 @@ function showCreationWizard() {
 
     const newLocs = new Map(); // key → {lat, lng, title, photos[], gpsSource}
 
+    let exifCount = 0, aiCount = 0;
     for (let i = 0; i < _aiPhotos.length; i++) {
       const ph = _aiPhotos[i];
-      _aiStatus = (i + 1) + "/" + _aiPhotos.length + ": " + ph.title;
-      // Update status without full re-render
-      const statusEl = document.querySelector(".hj-wizard-modal .hj-wizard-overlay span[style*='color:#64748b']");
+      const sourceStr = ph.exif?.hasGps ? "GPS" : "AI";
+      _aiStatus = (i + 1) + "/" + _aiPhotos.length + " (" + sourceStr + "): " + ph.title;
 
       if (ph.exif?.hasGps) {
+        exifCount++;
         // Group by rounded coords
         const key = (Math.round(ph.exif.lat * 1000) / 1000) + "," + (Math.round(ph.exif.lng * 1000) / 1000);
         if (!newLocs.has(key)) {
@@ -638,6 +703,7 @@ function showCreationWizard() {
         }
         newLocs.get(key).photos.push({ id: ph.id, title: ph.title });
       } else {
+        aiCount++;
         // Try AI vision analysis
         try {
           const compressed = await compressPhoto(ph.file);
@@ -699,23 +765,91 @@ function showCreationWizard() {
       });
     }
 
-    // Try to name EXIF locations via AI
+    // Name EXIF locations via Nominatim (with AI fallback)
+    let namingIdx = 0;
     for (const loc of locations) {
       if (loc.gpsSource === "exif" && loc.title === "GPS Location") {
+        namingIdx++;
+        _aiStatus = "Naming GPS location " + namingIdx + "...";
+        // Try Nominatim first
+        try {
+          const name = await reverseGeocode(loc.lat, loc.lng);
+          if (name) { loc.title = name; await new Promise(r => setTimeout(r, 1100)); continue; }
+        } catch {}
+        // Fallback to AI
         try {
           const result = await callAI("text", {
-            userPrompt: "What is the name of the place at coordinates " + loc.lat.toFixed(5) + ", " + loc.lng.toFixed(5) + "? Return ONLY the place name, nothing else.",
-            temperature: 0.3
+            userPrompt: "What is the name of the place at coordinates " + loc.lat.toFixed(5) + ", " + loc.lng.toFixed(5) + "? Return ONLY the place name (2-6 words), nothing else.",
+            temperature: 0.1
           });
           const name = (result.text || "").trim().replace(/["']/g, "");
           if (name && name.length < 80) loc.title = name;
-        } catch (e) {}
+        } catch {}
       }
     }
 
     _aiAnalyzing = false;
-    _aiStatus = "Done! " + locations.length + " locations found.";
+    _aiStatus = "Done! " + locations.length + " locations (" + exifCount + " GPS, " + aiCount + " AI)";
     render();
+  }
+
+  // ── Cluster locations within radius using Union-Find ──
+  function clusterLocationsByDistance(radiusM) {
+    if (locations.length < 2 || radiusM <= 0) return;
+    const parent = locations.map((_, i) => i);
+    const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+    const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+
+    for (let i = 0; i < locations.length; i++) {
+      for (let j = i + 1; j < locations.length; j++) {
+        const distM = _haversineKm(locations[i].lat, locations[i].lng, locations[j].lat, locations[j].lng) * 1000;
+        if (distM <= radiusM) union(i, j);
+      }
+    }
+
+    // Group by root
+    const groups = new Map();
+    for (let i = 0; i < locations.length; i++) {
+      const r = find(i);
+      if (!groups.has(r)) groups.set(r, []);
+      groups.get(r).push(i);
+    }
+
+    const newLocs = [];
+    for (const [, indices] of groups) {
+      if (indices.length === 1) {
+        newLocs.push(locations[indices[0]]);
+      } else {
+        // Merge: use first location's title, average coords, combine photos
+        const first = locations[indices[0]];
+        let avgLat = 0, avgLng = 0, allPhotos = [];
+        for (const idx of indices) {
+          avgLat += locations[idx].lat;
+          avgLng += locations[idx].lng;
+          allPhotos = allPhotos.concat(locations[idx].photos || []);
+        }
+        avgLat /= indices.length; avgLng /= indices.length;
+        newLocs.push({ ...first, lat: avgLat, lng: avgLng, photos: allPhotos });
+      }
+    }
+    locations = newLocs;
+    _selectedLocs.clear();
+  }
+
+  // ── Merge selected locations ──
+  function mergeSelectedLocations() {
+    const selected = locations.filter(l => _selectedLocs.has(l.id));
+    if (selected.length < 2) return;
+    const remaining = locations.filter(l => !_selectedLocs.has(l.id));
+    let avgLat = 0, avgLng = 0, allPhotos = [];
+    for (const loc of selected) {
+      avgLat += loc.lat; avgLng += loc.lng;
+      allPhotos = allPhotos.concat(loc.photos || []);
+    }
+    avgLat /= selected.length; avgLng /= selected.length;
+    const merged = { ...selected[0], lat: avgLat, lng: avgLng, photos: allPhotos };
+    locations = [...remaining, merged];
+    _selectedLocs.clear();
   }
 
   // ── Shared location list renderer ──
@@ -727,7 +861,18 @@ function showCreationWizard() {
     const list = _el("div", ct, { style: "max-height:280px;overflow-y:auto;" });
     const badgeColors = { exif: "#2563eb", "ai-high": "#10b981", "ai-medium": "#f59e0b", "ai-low": "#ef4444", "ai-unknown": "#6b7280", manual: "#2d6a4f" };
     locations.forEach((loc, i) => {
-      const row = _el("div", list, { style: "display:flex;gap:6px;align-items:center;padding:7px 10px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:5px;background:#fafafa;" });
+      const isSelected = _selectedLocs.has(loc.id);
+      const row = _el("div", list, { style: "display:flex;gap:6px;align-items:center;padding:7px 10px;border:1px solid " + (isSelected ? "#2563eb" : "#e5e7eb") + ";border-radius:8px;margin-bottom:5px;background:" + (isSelected ? "#eff6ff" : "#fafafa") + ";" });
+      // Selection checkbox (only when in AI mode with results)
+      if (useAiLocation && _aiPhotos.length > 0) {
+        const cb = _el("input", row);
+        cb.type = "checkbox"; cb.checked = isSelected;
+        cb.style.cssText = "width:14px;height:14px;accent-color:#2563eb;cursor:pointer;flex-shrink:0;";
+        cb.onchange = () => {
+          if (cb.checked) _selectedLocs.add(loc.id); else _selectedLocs.delete(loc.id);
+          render();
+        };
+      }
       // Badge
       const badgeColor = badgeColors[loc.gpsSource] || "#2d6a4f";
       _el("div", row, { text: String(i + 1), style: "width:22px;height:22px;border-radius:50%;background:" + badgeColor + ";color:white;font-size:0.65rem;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;" });
