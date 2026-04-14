@@ -7,6 +7,7 @@
   <meta name="description" content="Turn your Obsidian notes into stunning, shareable travel journals. AI-powered sketches, scrollytelling maps, and scrapbook layouts — all from your own data." />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="style-landing.css" />
+  <link rel="stylesheet" href="shared/auth.css" />
 </head>
 <body>
 
@@ -28,6 +29,7 @@
       <a href="souvenir/">Souvenir Studio</a>
       <a href="#get-started">Install</a>
       <a href="https://github.com/rickliang-JY/HikerScrolls" target="_blank" rel="noopener">GitHub</a>
+      <span id="auth-btn"></span>
       <a href="#demo" class="nav-cta btn">Try Demo</a>
     </div>
   </div>
@@ -484,5 +486,8 @@
   </div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared/auth.js"></script>
+<script>HikerAuth.init();</script>
 </body>
 </html>
