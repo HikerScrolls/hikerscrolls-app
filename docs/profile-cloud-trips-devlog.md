@@ -54,3 +54,46 @@
 - Optimistic update conflict handling via `updated_at` (Phase 3).
 - Cover-image signed URL for sidebar cards on cloud trips (Phase 3).
 - Playwright smoke test for round-trip sign-in / trip visibility (Phase 3).
+
+---
+
+## 2026-04-17 — Follow-up: entry points for create / open
+
+User feedback: from the landing page and the souvenir studio there was no direct path to "create a new trip" or "open an existing trip" — users had to navigate to `/demo/` and use the sidebar. Rather than adding a nav-bar button to every page, concentrate the entry points in the Profile modal (which is already the trip-management surface), and reach `/demo/` via deep-link query params so the flow works from anywhere.
+
+### Modified
+
+- `shared/profile.js`:
+  - Added a **+ New Trip** primary button in the "My Trips" section header. On `/demo/` it calls `window.showCreationWizard()` directly; elsewhere it navigates to `/demo/?new=1`.
+- `shared/profile.css`:
+  - New `.hk-profile-section-header` flex row so the title + button align.
+  - Tightened `.hk-profile-btn.primary` padding so it fits beside the section title.
+- `demo/app.js`:
+  - Exposed `window.showCreationWizard`.
+  - Added `_consumeQueryParam(name)` helper that reads and strips a query param via `history.replaceState` so refreshes don't re-trigger.
+  - On init, after `tripsData` is loaded, read `?new=1` → open wizard; read `?trip=<id>` → `openTrip(id)`.
+  - Hardened `openTrip()`: if the id is a UUID and isn't in the cached list or local trips, fall back to `HikerTripsRepo.getTrip(id)` before attempting the demo-trip fetch. Handles the case where a deep link opens before auth hydration has finished populating the cached cloud list.
+
+### Decisions
+
+- **Put CTAs in Profile, not the nav bar.** Keeps the management flow coherent; easy to promote to nav later if users report discoverability issues.
+- **Use query params, not hash fragments.** `?new=1` / `?trip=<id>` are trivially consumable server-side too if we ever move to SSR; they're also strip-on-consume so the URL stays clean after handling.
+
+---
+
+## 2026-04-17 — Bugfix: UUID id for cloud sync
+
+Reported by user: syncing a local trip to the cloud failed with `invalid input syntax for type uuid: "trip-1776464467868"`. The legacy `finishWizard()` minted ids as `"trip-" + Date.now()`, but `trips.id` is a `uuid` column.
+
+### Modified
+
+- `shared/trips-repo.js`:
+  - Added `_isUuid(id)` + `_newUuid()` (uses `crypto.randomUUID()`, with an RFC 4122 v4 fallback).
+  - `syncLocalTripToCloud()` now rewrites the trip id to a fresh UUID if the incoming id isn't UUID-shaped; storage paths and the row pk both use the new id.
+  - Exposed `HikerTripsRepo.newId()` and `HikerTripsRepo.isUuid()` for callers that want to generate UUIDs directly.
+- `demo/app.js`:
+  - `finishWizard()` now mints trip ids via `HikerTripsRepo.newId()` (falls back to `crypto.randomUUID()` or the legacy format only if neither is available). New trips created locally are therefore sync-compatible without id remapping.
+
+### Decisions
+
+- **Remap ids on sync instead of failing hard.** Existing local trips already on disk use the old `"trip-…"` format — we can't force users to re-create them. The remap happens only when we actually upload, and the new id is wired through both the row pk and the Storage path prefix in the same call.

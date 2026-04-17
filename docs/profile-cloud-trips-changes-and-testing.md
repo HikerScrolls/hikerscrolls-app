@@ -131,6 +131,15 @@ This feature closes that gap:
 3. **Export** a trip. A `.json` file downloads; contents reflect the trip shape.
 4. **Delete** a trip. Confirmation required. Row and Storage files are removed; sidebar refreshes.
 
+### 3.7b Scenario 6b — Create / open a trip from Profile
+
+**Purpose:** Verify the "+ New Trip" button and Open-from-anywhere flow.
+
+1. On the landing page (`/`), sign in, open Profile → click **+ New Trip**. Expected: browser navigates to `/demo/?new=1`, the URL is immediately rewritten to `/demo/`, and the creation wizard appears automatically.
+2. On `/demo/` itself, open Profile → click **+ New Trip**. Expected: modal closes and the wizard opens in-place (no navigation round-trip).
+3. From the souvenir studio, open Profile → click **Open** on an existing cloud trip. Expected: browser navigates to `/demo/?trip=<id>`, URL is rewritten to `/demo/`, and the trip opens.
+4. Paste `/demo/?trip=<valid-cloud-trip-id>` directly into the address bar while signed in. Expected: the trip opens even though it wasn't pre-loaded when the page started.
+
 ### 3.8 Scenario 7 — RLS sanity check (optional but recommended)
 
 **Purpose:** Confirm the server actually blocks cross-user reads.

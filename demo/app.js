@@ -1383,7 +1383,12 @@ function showCreationWizard() {
   // ── Finish: Save Trip ──
   // ══════════════════════════════════════════════════════════
   async function finishWizard() {
-    const tripId = "trip-" + Date.now();
+    // Use a UUID when we can so signed-in sync can reuse the id as-is
+    // (the cloud `trips.id` column is `uuid`). Falls back to the legacy
+    // timestamp format for ancient browsers that lack `crypto.randomUUID`.
+    const tripId = (window.HikerTripsRepo?.newId)
+      ? window.HikerTripsRepo.newId()
+      : ((typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "trip-" + Date.now());
 
     // Build waypoints from sections or locations
     let waypoints;
@@ -5120,8 +5125,17 @@ async function openTrip(filename) {
   container.style.display = "";
 
   // Check if it's a cloud trip (loaded in tripsData when signed in)
-  const cloudTrip = (tripsData || []).find(t => t._isCloud && (t.id === filename || t.file === filename));
+  let cloudTrip = (tripsData || []).find(t => t._isCloud && (t.id === filename || t.file === filename));
   const localTrip = getLocalTrips().find(t => t.id === filename || t.file === filename);
+
+  // Direct-link fallback: a UUID-looking id not in the cached list may still
+  // be a cloud trip (e.g. opened via `?trip=<id>` before auth finished).
+  if (!cloudTrip && !localTrip && window.HikerTripsRepo?.getTrip && /^[0-9a-f-]{36}$/i.test(filename)) {
+    try {
+      cloudTrip = await window.HikerTripsRepo.getTrip(filename);
+    } catch (e) { /* ignore, fall through to demo fetch */ }
+  }
+
   let data;
   if (cloudTrip) {
     // Fetch fresh copy (signed URLs + latest waypoints) then deep-clone.
@@ -5198,11 +5212,21 @@ function backToList() {
 
 // Expose helpers the Profile modal calls.
 window.openTrip = openTrip;
+window.showCreationWizard = showCreationWizard;
 window.reloadTripList = async function reloadTripList() {
   tripsData = await loadTripIndex();
   renderTripList();
   if (globalMap) globalMap.loadTrips(tripsData);
 };
+
+function _consumeQueryParam(name) {
+  const url = new URL(window.location);
+  const value = url.searchParams.get(name);
+  if (value == null) return null;
+  url.searchParams.delete(name);
+  window.history.replaceState({}, "", url.pathname + (url.searchParams.toString() ? "?" + url.searchParams.toString() : "") + url.hash);
+  return value;
+}
 
 // === Init ===
 document.addEventListener("DOMContentLoaded", async () => {
@@ -5211,6 +5235,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupSidebar();
     renderTripList();
     showGlobalMap();
+
+    // Deep-link handling: `?new=1` auto-opens the wizard; `?trip=<id>` opens a trip.
+    const wantsNew = _consumeQueryParam("new") === "1";
+    const wantsTripId = _consumeQueryParam("trip");
+    if (wantsNew) {
+      showCreationWizard();
+    } else if (wantsTripId) {
+      openTrip(wantsTripId);
+    }
 
     // Refresh trip list when the user signs in or out so cloud trips appear/disappear.
     if (window.HikerAuth?.onAuthStateChange) {

@@ -8,8 +8,23 @@
 
   const BUCKET = "trip-photos";
   const SIGNED_URL_TTL_SEC = 60 * 60; // 1 hour
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const _signedUrlCache = new Map(); // path → { url, expiresAt }
+
+  function _isUuid(id) { return typeof id === "string" && UUID_RE.test(id); }
+
+  function _newUuid() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    // Fallback (RFC 4122 v4, pseudo-random)
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
 
   function _client() {
     return window.HikerAuth && window.HikerAuth.getClient ? window.HikerAuth.getClient() : null;
@@ -213,6 +228,12 @@
     trip._isLocal = false;
     trip._isCloud = true;
 
+    // `trips.id` is a uuid column — remap legacy ids like `trip-173...`.
+    if (!_isUuid(trip.id)) {
+      trip.id = _newUuid();
+      trip.file = trip.id;
+    }
+
     // Upload every idb:// photo, rewrite imageUrl.
     const tripId = trip.id;
     for (const wp of (trip.waypoints || [])) {
@@ -247,6 +268,8 @@
     uploadPhoto,
     getPhotoSignedUrl,
     resolvePhotoUrls,
-    syncLocalTripToCloud
+    syncLocalTripToCloud,
+    newId: _newUuid,
+    isUuid: _isUuid
   };
 })();

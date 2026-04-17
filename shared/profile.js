@@ -146,9 +146,25 @@
     identity.appendChild(signOutBtn);
     body.appendChild(identity);
 
-    // Trips section
+    // Trips section (title + "New Trip" CTA row)
     const section = el("div", { className: "hk-profile-section" });
-    section.appendChild(el("div", { className: "hk-profile-section-title", textContent: "My Trips" }));
+    const sectionHeader = el("div", { className: "hk-profile-section-header" });
+    sectionHeader.appendChild(el("div", { className: "hk-profile-section-title", textContent: "My Trips" }));
+    sectionHeader.appendChild(el("button", {
+      className: "hk-profile-btn primary",
+      textContent: "+ New Trip",
+      onClick: () => {
+        closeOverlay(overlay);
+        if (typeof window.showCreationWizard === "function") {
+          // Already on the demo page — open the wizard directly.
+          window.showCreationWizard();
+        } else {
+          // Elsewhere — jump to demo with an auto-trigger param.
+          window.location.href = "/demo/?new=1";
+        }
+      }
+    }));
+    section.appendChild(sectionHeader);
     const listEl = el("div", { className: "hk-profile-list" });
     section.appendChild(listEl);
     body.appendChild(section);

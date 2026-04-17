@@ -117,13 +117,20 @@
 }
 
 /* ── Section ── */
+.hk-profile-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
 .hk-profile-section-title {
   font-size: 13px;
   font-weight: 600;
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-bottom: 10px;
 }
 
 .hk-profile-list {
@@ -204,8 +211,9 @@
 .hk-profile-btn.primary {
   background: #1e293b;
   color: #fff;
-  padding: 8px 14px;
-  font-size: 13px;
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .hk-profile-btn.primary:hover {
