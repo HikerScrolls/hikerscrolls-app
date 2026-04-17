@@ -1421,13 +1421,31 @@ function showCreationWizard() {
       id: tripId, version: 5, _isLocal: true, _created: Date.now(),
       file: tripId,
       name: config.name || "Untitled Trip",
-      date: config.date, region: config.region, description: config.description,
+      date: config.date, endDate: config.endDate, region: config.region, description: config.description,
       template: config.template, mapStyle: config.mapStyle,
       stats: gpxData ? { distanceKm: gpxData.totalDistanceKm, elevationGainM: gpxData.elevationGainM, elevationLossM: gpxData.elevationLossM } : {},
       gpxTrack: gpxData ? gpxData.trackPoints : [],
       waypoints
     };
 
+    // If signed in, save straight to cloud (photos → Storage, row → trips).
+    const signedIn = !!(window.HikerAuth?.getUser?.());
+    if (signedIn && window.HikerTripsRepo) {
+      try {
+        const cloudTrip = await window.HikerTripsRepo.syncLocalTripToCloud(trip, getPhotoFromIDB);
+        destroyMap();
+        overlay.remove();
+        tripsData = await loadTripIndex();
+        renderTripList();
+        openTrip(cloudTrip.id);
+        return;
+      } catch (err) {
+        console.warn("Cloud save failed — falling back to local:", err.message || err);
+        alert("Cloud save failed: " + (err.message || err) + "\nSaved locally instead.");
+      }
+    }
+
+    // Anonymous (or cloud save failed): persist locally.
     saveLocalTrip(trip);
     destroyMap();
     overlay.remove();
@@ -4839,8 +4857,19 @@ let activeFile = null;
 async function loadTripIndex() {
   let serverTrips = [];
   try { const resp = await fetch("data/trips.json"); serverTrips = await resp.json(); } catch (e) {}
-  const localTrips = getLocalTrips();
-  return [...localTrips, ...serverTrips];
+  const localTrips = getLocalTrips().map(t => ({ ...t, _isLocal: true, _isCloud: false }));
+
+  let cloudTrips = [];
+  if (window.HikerAuth?.getUser?.() && window.HikerTripsRepo) {
+    try {
+      cloudTrips = await window.HikerTripsRepo.listTrips();
+    } catch (e) {
+      console.warn("Failed to list cloud trips:", e.message || e);
+    }
+  }
+
+  // Cloud first (user's own, freshest), then local, then server demos.
+  return [...cloudTrips, ...localTrips, ...serverTrips];
 }
 
 async function loadTripData(filename) {
@@ -4932,24 +4961,73 @@ function renderTripList() {
       info.appendChild(meta);
     }
 
-    // Delete button for local trips
-    if (trip._isLocal) {
+    // Ownership badge (cloud / local) — shown only when signed in
+    const signedIn = !!(window.HikerAuth?.getUser?.());
+    if (trip._isCloud || (trip._isLocal && signedIn)) {
+      const badge = document.createElement("span");
+      badge.textContent = trip._isCloud ? "Cloud" : "Local";
+      badge.style.cssText = "position:absolute;top:6px;left:6px;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;color:#fff;z-index:2;" +
+        (trip._isCloud
+          ? "background:rgba(16,185,129,0.85);"
+          : "background:rgba(100,116,139,0.85);");
+      card.style.position = "relative";
+      card.appendChild(badge);
+    }
+
+    // Delete button — works for both cloud and local trips
+    if (trip._isLocal || trip._isCloud) {
       const delBtn = document.createElement("button");
       delBtn.textContent = "\u00d7";
+      delBtn.title = "Delete trip";
       delBtn.style.cssText = "position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,0.8);color:white;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;z-index:2;";
       delBtn.onclick = async (e) => {
         e.stopPropagation();
-        if (confirm("Delete '" + trip.name + "'? This cannot be undone.")) {
-          deleteLocalTrip(trip.id);
+        if (!confirm("Delete '" + trip.name + "'? This cannot be undone.")) return;
+        try {
+          if (trip._isCloud && window.HikerTripsRepo) {
+            await window.HikerTripsRepo.deleteTrip(trip.id);
+          } else {
+            deleteLocalTrip(trip.id);
+          }
           tripsData = await loadTripIndex();
           renderTripList();
           if (activeFile === trip.file) backToList();
+        } catch (err) {
+          alert("Delete failed: " + (err.message || err));
         }
       };
       card.style.position = "relative";
       card.addEventListener("mouseenter", () => { delBtn.style.opacity = "1"; });
       card.addEventListener("mouseleave", () => { delBtn.style.opacity = "0"; });
       card.appendChild(delBtn);
+    }
+
+    // Sync-to-cloud button for local trips (only when signed in)
+    if (trip._isLocal && signedIn && window.HikerTripsRepo) {
+      const syncBtn = document.createElement("button");
+      syncBtn.textContent = "Sync";
+      syncBtn.title = "Sync this trip to the cloud";
+      syncBtn.style.cssText = "position:absolute;bottom:6px;right:6px;padding:3px 8px;border-radius:10px;background:rgba(16,185,129,0.9);color:white;border:none;font-size:10px;font-weight:600;cursor:pointer;opacity:0;transition:opacity 0.2s;z-index:2;";
+      syncBtn.onclick = async (e) => {
+        e.stopPropagation();
+        const original = syncBtn.textContent;
+        syncBtn.disabled = true;
+        syncBtn.textContent = "Syncing…";
+        try {
+          await window.HikerTripsRepo.syncLocalTripToCloud(trip, getPhotoFromIDB);
+          deleteLocalTrip(trip.id);
+          tripsData = await loadTripIndex();
+          renderTripList();
+        } catch (err) {
+          alert("Sync failed: " + (err.message || err));
+          syncBtn.textContent = original;
+          syncBtn.disabled = false;
+        }
+      };
+      card.style.position = "relative";
+      card.addEventListener("mouseenter", () => { syncBtn.style.opacity = "1"; });
+      card.addEventListener("mouseleave", () => { syncBtn.style.opacity = "0"; });
+      card.appendChild(syncBtn);
     }
 
     card.appendChild(info);
@@ -5040,10 +5118,26 @@ async function openTrip(filename) {
   document.getElementById("global-map").style.display = "none";
   const container = document.getElementById("trip-view");
   container.style.display = "";
-  // Check if it's a local trip
+
+  // Check if it's a cloud trip (loaded in tripsData when signed in)
+  const cloudTrip = (tripsData || []).find(t => t._isCloud && (t.id === filename || t.file === filename));
   const localTrip = getLocalTrips().find(t => t.id === filename || t.file === filename);
   let data;
-  if (localTrip) {
+  if (cloudTrip) {
+    // Fetch fresh copy (signed URLs + latest waypoints) then deep-clone.
+    let fresh = cloudTrip;
+    try {
+      if (window.HikerTripsRepo?.getTrip) {
+        const refreshed = await window.HikerTripsRepo.getTrip(cloudTrip.id);
+        if (refreshed) fresh = refreshed;
+      }
+    } catch (e) { /* fall back to cached */ }
+    data = JSON.parse(JSON.stringify(fresh));
+    data.file = data.id;
+    if (window.HikerTripsRepo?.resolvePhotoUrls) {
+      await window.HikerTripsRepo.resolvePhotoUrls(data);
+    }
+  } else if (localTrip) {
     data = localTrip;
     // Resolve idb:// photo URLs to blob URLs
     for (const wp of (data.waypoints || [])) {
@@ -5102,6 +5196,14 @@ function backToList() {
   showGlobalMap();
 }
 
+// Expose helpers the Profile modal calls.
+window.openTrip = openTrip;
+window.reloadTripList = async function reloadTripList() {
+  tripsData = await loadTripIndex();
+  renderTripList();
+  if (globalMap) globalMap.loadTrips(tripsData);
+};
+
 // === Init ===
 document.addEventListener("DOMContentLoaded", async () => {
   try {
@@ -5109,6 +5211,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupSidebar();
     renderTripList();
     showGlobalMap();
+
+    // Refresh trip list when the user signs in or out so cloud trips appear/disappear.
+    if (window.HikerAuth?.onAuthStateChange) {
+      let lastUserId = window.HikerAuth.getUser?.()?.id || null;
+      window.HikerAuth.onAuthStateChange(async (user) => {
+        const nextUserId = user?.id || null;
+        if (nextUserId === lastUserId) return;
+        lastUserId = nextUserId;
+        try {
+          tripsData = await loadTripIndex();
+          renderTripList();
+          if (globalMap) globalMap.loadTrips(tripsData);
+        } catch (e) {
+          console.warn("Reload on auth change failed:", e.message || e);
+        }
+      });
+    }
   } catch (err) {
     console.error("Failed to load trip index:", err);
   }
