@@ -4859,15 +4859,32 @@ let currentSort = "date";
 let currentSearch = "";
 let activeFile = null;
 
+function _deriveTripPinCoords(trip) {
+  if (typeof trip.lat === "number" && typeof trip.lng === "number") return trip;
+  // Prefer a waypoint with coordinates; fall back to the first GPX point.
+  const wp = (trip.waypoints || []).find(w => typeof w.lat === "number" && typeof w.lng === "number");
+  if (wp) {
+    return { ...trip, lat: wp.lat, lng: wp.lng };
+  }
+  const pt = (trip.gpxTrack || []).find(p => typeof p.lat === "number" && typeof p.lng === "number");
+  if (pt) {
+    return { ...trip, lat: pt.lat, lng: pt.lng };
+  }
+  return trip;
+}
+
 async function loadTripIndex() {
   let serverTrips = [];
   try { const resp = await fetch("data/trips.json"); serverTrips = await resp.json(); } catch (e) {}
-  const localTrips = getLocalTrips().map(t => ({ ...t, _isLocal: true, _isCloud: false }));
+  const localTrips = getLocalTrips()
+    .map(t => ({ ...t, _isLocal: true, _isCloud: false }))
+    .map(_deriveTripPinCoords);
 
   let cloudTrips = [];
   if (window.HikerAuth?.getUser?.() && window.HikerTripsRepo) {
     try {
-      cloudTrips = await window.HikerTripsRepo.listTrips();
+      const raw = await window.HikerTripsRepo.listTrips();
+      cloudTrips = raw.map(_deriveTripPinCoords);
     } catch (e) {
       console.warn("Failed to list cloud trips:", e.message || e);
     }
