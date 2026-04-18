@@ -52,6 +52,7 @@
       gpxTrack: Array.isArray(row.gpx_track) ? row.gpx_track : [],
       waypoints: Array.isArray(row.waypoints) ? row.waypoints : [],
       coverPhotoId: row.cover_photo_id || null,
+      archivedAt: row.archived_at || null,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -72,6 +73,7 @@
       gpx_track: Array.isArray(trip.gpxTrack) ? trip.gpxTrack : [],
       waypoints: Array.isArray(trip.waypoints) ? trip.waypoints : [],
       cover_photo_id: trip.coverPhotoId || null,
+      archived_at: trip.archivedAt || null,
       version: trip.version || 5
     };
   }
@@ -125,6 +127,43 @@
       .single();
     if (error) throw new Error(error.message || "Rename failed.");
     return _rowToTrip(data);
+  }
+
+  async function archiveTrip(id) {
+    const supabase = _client();
+    if (!supabase) throw new Error("Not signed in.");
+    const { data, error } = await supabase
+      .from("trips")
+      .update({ archived_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message || "Archive failed.");
+    return _rowToTrip(data);
+  }
+
+  async function unarchiveTrip(id) {
+    const supabase = _client();
+    if (!supabase) throw new Error("Not signed in.");
+    const { data, error } = await supabase
+      .from("trips")
+      .update({ archived_at: null })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message || "Unarchive failed.");
+    return _rowToTrip(data);
+  }
+
+  async function removePhotos(paths) {
+    if (!paths || !paths.length) return;
+    const supabase = _client();
+    if (!supabase) return;
+    try {
+      await supabase.storage.from(BUCKET).remove(paths);
+    } catch (e) {
+      console.warn("[trips-repo] removePhotos failed:", e.message || e);
+    }
   }
 
   async function deleteTrip(id) {
@@ -264,8 +303,11 @@
     getTrip,
     saveTrip,
     renameTrip,
+    archiveTrip,
+    unarchiveTrip,
     deleteTrip,
     uploadPhoto,
+    removePhotos,
     getPhotoSignedUrl,
     resolvePhotoUrls,
     syncLocalTripToCloud,

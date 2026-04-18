@@ -140,6 +140,28 @@ This feature closes that gap:
 3. From the souvenir studio, open Profile → click **Open** on an existing cloud trip. Expected: browser navigates to `/demo/?trip=<id>`, URL is rewritten to `/demo/`, and the trip opens.
 4. Paste `/demo/?trip=<valid-cloud-trip-id>` directly into the address bar while signed in. Expected: the trip opens even though it wasn't pre-loaded when the page started.
 
+### 3.8 Scenario 7 — Edit trip
+
+**Purpose:** Verify metadata edits and per-waypoint photo add/remove round-trip correctly for both local and cloud trips.
+
+Prereq: apply `supabase/migrations/20260417000001_trips_archived_at.sql` so the `archived_at` column exists.
+
+1. Hover a cloud trip card → click the ✎ (edit) button. Edit modal opens. Verify the form is pre-filled with name / region / dates / description / template / map style.
+2. Change the name, description, and template → click **Save**. Expected: modal closes, sidebar card shows the new name, the global map refreshes. Reload the page — the changes persist (row in `trips` should reflect the new values).
+3. In the same modal, under a waypoint with existing photos, click × on one photo → click **Save**. Expected: Storage file under `{uid}/{trip}/{photo}.jpg` is deleted; the trip viewer for that trip no longer shows the removed photo. Confirm via Supabase Storage dashboard.
+4. Click **+ Add** under a waypoint → pick one or more images. Expected: thumbnails appear instantly in the grid (local blob URLs). After **Save**, Storage shows newly-uploaded files and the trip viewer renders them via signed URLs.
+5. Repeat 1–4 for a local trip. Photo changes should hit IndexedDB (`hikerscrolls-photos`), not Storage. Deleted photo ids should disappear from IDB.
+6. From the Profile modal → click **Edit** on a cloud trip while on the landing page. Expected: navigates to `/demo/?edit=<id>`, URL is rewritten to `/demo/`, edit modal opens.
+
+### 3.9 Scenario 8 — Archive / Unarchive
+
+**Purpose:** Verify archive hides a trip from the sidebar + global map but preserves it for restore.
+
+1. Hover a trip card → click the □ (archive) button. Expected: card vanishes from the sidebar immediately; the pin disappears from the global map. For cloud trips, `archived_at` is set in the DB; for local trips, the localStorage entry has `archivedAt` populated.
+2. Open Profile → expand **Archived** section. The archived trip appears here (for cloud trips; local archived trips are still only visible through the sidebar filter for v1). Click **Unarchive**. Expected: it returns to the sidebar + map; `archived_at` is cleared in the DB.
+3. Archive a trip → close and reopen Profile. Verify the Archived section persists across modal open/close.
+4. In the Archived section, click **Delete**. Expected: row + storage files are permanently removed.
+
 ### 3.8 Scenario 7 — RLS sanity check (optional but recommended)
 
 **Purpose:** Confirm the server actually blocks cross-user reads.

@@ -97,3 +97,38 @@ Reported by user: syncing a local trip to the cloud failed with `invalid input s
 ### Decisions
 
 - **Remap ids on sync instead of failing hard.** Existing local trips already on disk use the old `"trip-…"` format — we can't force users to re-create them. The remap happens only when we actually upload, and the new id is wired through both the row pk and the Storage path prefix in the same call.
+
+---
+
+## 2026-04-17 — Edit modal + Archive / Unarchive
+
+Added trip editing (metadata + per-waypoint photo CRUD, waypoints themselves stay immutable) and archive/restore. Waypoints, sections, and GPX are intentionally read-only for now — see the plan doc for the scope discussion with the user.
+
+### Created
+
+- `supabase/migrations/20260417000001_trips_archived_at.sql` — adds nullable `archived_at timestamptz` column and a composite index `(user_id, archived_at nulls first, updated_at desc)`. Non-null means archived.
+
+### Modified
+
+- `shared/trips-repo.js`:
+  - `_rowToTrip` / `_tripToRow` thread `archived_at ↔ archivedAt`.
+  - New `archiveTrip(id)`, `unarchiveTrip(id)`, `removePhotos(paths)` methods.
+  - Public API extended with those plus `removePhotos` for the edit-save diff path.
+- `shared/profile.js`:
+  - Row renderer takes a `handlers` object (Open / Edit / Export / Archive / Unarchive / Delete). Active rows show Open + Edit + Export + Archive + Delete; archived rows show Unarchive + Delete.
+  - Body now has two sections: "My Trips" (active) and "Archived" (hidden when empty).
+  - Edit action opens `window.editTrip(id)` in-place or navigates to `/demo/?edit=<id>` otherwise.
+- `demo/app.js`:
+  - New `showEditModal(tripId)` — loads the canonical trip (via `HikerTripsRepo.getTrip` for cloud, `getLocalTrips()` for local) so imageUrls stay in their canonical `supabase://` / `idb://` form. Form edits `name / region / date / endDate / description / template / mapStyle`. Photo grid per waypoint with × remove and "+ Add" input. Staged additions hold an ArrayBuffer + blob URL until Save.
+  - Save pipeline: upload staged photos (`supabase://` or `idb://`) → delete removed photos from Storage / IDB → persist the trip row via `saveTrip` or `saveLocalTrip`.
+  - `_activeTrips()` helper filters archived trips out of the sidebar and global map.
+  - Trip card hover now exposes three stacked buttons: Edit (pencil), Archive (□), Delete (×). Archive writes `archivedAt` to the cloud row or the local trip object.
+  - Deep-link: `?edit=<id>` triggers the edit modal on init. `window.editTrip` exposed for cross-module callers.
+
+### Decisions
+
+- **Edit modal lives in `demo/app.js`, not `shared/`.** It needs `compressPhoto`, `getPhotoBlobUrl`, `savePhotoToIDB`, `deletePhotoFromIDB`, `saveLocalTrip` — all local helpers. Deep-link (`?edit=<id>`) makes it reachable from `landing` / `souvenir` without moving code.
+- **Waypoints stay read-only.** User explicitly accepted this scope to avoid the complexity of rebuilding wizard state + managing section reference integrity + GPX replacement semantics.
+- **Canonical photo URLs inside the editor.** `HikerTripsRepo.getTrip` returns `supabase://` paths (doesn't mutate with signed URLs). Thumbnails resolve lazily via `thumbUrlFor`. This makes diff computation on save unambiguous: every photo either has `_staged=true` (new) or is tracked in `removedPhotos` if the user removed it.
+- **Archive is soft delete.** Rows stay in the DB; Storage files stay too. Unarchive is a one-column update — cheap and reversible. Permanent removal still goes through Delete.
+- **Local trip archive uses the same `archivedAt` key.** Same filter logic works for both local and cloud trips.

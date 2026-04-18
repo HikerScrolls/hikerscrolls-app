@@ -48,7 +48,7 @@
 
   // ── Trip row ──────────────────────────────────────────────
 
-  function renderTripRow(trip, onOpen, onRename, onDelete, onExport) {
+  function renderTripRow(trip, handlers) {
     const row = el("div", { className: "hk-profile-trip" });
 
     const info = el("div", { className: "hk-profile-trip-info" });
@@ -58,17 +58,20 @@
     if (trip.region) meta.push(trip.region);
     if (trip.date) meta.push(formatDate(trip.date));
     if (trip.stats?.distanceKm) meta.push(`${trip.stats.distanceKm} km`);
-    if (trip.updatedAt) meta.push(`Updated ${formatDate(trip.updatedAt)}`);
+    if (trip.archivedAt) meta.push(`Archived ${formatDate(trip.archivedAt)}`);
+    else if (trip.updatedAt) meta.push(`Updated ${formatDate(trip.updatedAt)}`);
     if (meta.length) {
       info.appendChild(el("div", { className: "hk-profile-trip-meta", textContent: meta.join(" · ") }));
     }
     row.appendChild(info);
 
     const actions = el("div", { className: "hk-profile-trip-actions" });
-    actions.appendChild(el("button", { className: "hk-profile-btn ghost", textContent: "Open", onClick: () => onOpen(trip) }));
-    actions.appendChild(el("button", { className: "hk-profile-btn ghost", textContent: "Rename", onClick: () => onRename(trip) }));
-    actions.appendChild(el("button", { className: "hk-profile-btn ghost", textContent: "Export", onClick: () => onExport(trip) }));
-    actions.appendChild(el("button", { className: "hk-profile-btn danger", textContent: "Delete", onClick: () => onDelete(trip) }));
+    if (handlers.onOpen) actions.appendChild(el("button", { className: "hk-profile-btn ghost", textContent: "Open", onClick: () => handlers.onOpen(trip) }));
+    if (handlers.onEdit) actions.appendChild(el("button", { className: "hk-profile-btn ghost", textContent: "Edit", onClick: () => handlers.onEdit(trip) }));
+    if (handlers.onExport) actions.appendChild(el("button", { className: "hk-profile-btn ghost", textContent: "Export", onClick: () => handlers.onExport(trip) }));
+    if (handlers.onArchive) actions.appendChild(el("button", { className: "hk-profile-btn ghost", textContent: "Archive", onClick: () => handlers.onArchive(trip) }));
+    if (handlers.onUnarchive) actions.appendChild(el("button", { className: "hk-profile-btn ghost", textContent: "Unarchive", onClick: () => handlers.onUnarchive(trip) }));
+    if (handlers.onDelete) actions.appendChild(el("button", { className: "hk-profile-btn danger", textContent: "Delete", onClick: () => handlers.onDelete(trip) }));
     row.appendChild(actions);
 
     return row;
@@ -146,7 +149,7 @@
     identity.appendChild(signOutBtn);
     body.appendChild(identity);
 
-    // Trips section (title + "New Trip" CTA row)
+    // Active trips section (title + "New Trip" CTA row)
     const section = el("div", { className: "hk-profile-section" });
     const sectionHeader = el("div", { className: "hk-profile-section-header" });
     sectionHeader.appendChild(el("div", { className: "hk-profile-section-title", textContent: "My Trips" }));
@@ -156,10 +159,8 @@
       onClick: () => {
         closeOverlay(overlay);
         if (typeof window.showCreationWizard === "function") {
-          // Already on the demo page — open the wizard directly.
           window.showCreationWizard();
         } else {
-          // Elsewhere — jump to demo with an auto-trigger param.
           window.location.href = "/demo/?new=1";
         }
       }
@@ -169,83 +170,145 @@
     section.appendChild(listEl);
     body.appendChild(section);
 
+    // Archived trips section
+    const archivedSection = el("div", { className: "hk-profile-section" });
+    archivedSection.style.marginTop = "20px";
+    archivedSection.appendChild(el("div", { className: "hk-profile-section-title", textContent: "Archived" }));
+    const archivedListEl = el("div", { className: "hk-profile-list" });
+    archivedSection.appendChild(archivedListEl);
+    body.appendChild(archivedSection);
+
     // Loading state
     listEl.appendChild(el("div", { className: "hk-profile-empty", textContent: "Loading your trips..." }));
 
+    function openHandler(t) {
+      closeOverlay(overlay);
+      if (typeof window.openTrip === "function") {
+        window.openTrip(t.id);
+      } else {
+        window.location.href = "/demo/?trip=" + encodeURIComponent(t.id);
+      }
+    }
+
+    function editHandler(t) {
+      closeOverlay(overlay);
+      if (typeof window.editTrip === "function") {
+        window.editTrip(t.id);
+      } else {
+        window.location.href = "/demo/?edit=" + encodeURIComponent(t.id);
+      }
+    }
+
+    function exportHandler(t) {
+      try {
+        const blob = new Blob([JSON.stringify(t, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = (t.name || "trip").replace(/[^a-z0-9]+/gi, "-").toLowerCase() + ".json";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+      } catch (e) {
+        toast("Export failed: " + (e.message || e));
+      }
+    }
+
     async function refresh() {
       listEl.innerHTML = "";
+      archivedListEl.innerHTML = "";
       const repo = window.HikerTripsRepo;
       if (!repo) {
         listEl.appendChild(el("div", { className: "hk-profile-empty", textContent: "Cloud sync module not loaded." }));
+        archivedSection.style.display = "none";
         return;
       }
-      let trips = [];
+
+      let cloudTrips = [];
       try {
-        trips = await repo.listTrips();
+        cloudTrips = await repo.listTrips();
       } catch (e) {
         listEl.appendChild(el("div", { className: "hk-profile-empty", textContent: "Could not load trips: " + (e.message || e) }));
+        archivedSection.style.display = "none";
         return;
       }
 
-      if (!trips.length) {
+      // Include local trips (when the demo module is available) so archived
+      // local trips can be restored from the same surface.
+      const localTrips = (typeof window.getLocalTrips === "function")
+        ? window.getLocalTrips().map(t => ({ ...t, _isLocal: true, _isCloud: false }))
+        : [];
+      const trips = [...cloudTrips, ...localTrips];
+
+      const active = trips.filter(t => !t.archivedAt);
+      const archived = trips.filter(t => t.archivedAt);
+
+      function setLocalArchived(id, archived) {
+        if (typeof window.getLocalTrips !== "function" || typeof window.saveLocalTrips !== "function") return;
+        const all = window.getLocalTrips();
+        const idx = all.findIndex(x => x.id === id);
+        if (idx < 0) return;
+        all[idx] = { ...all[idx], archivedAt: archived ? new Date().toISOString() : null };
+        window.saveLocalTrips(all);
+      }
+
+      async function doArchive(t) {
+        try {
+          if (t._isCloud) await repo.archiveTrip(t.id);
+          else setLocalArchived(t.id, true);
+          toast("Trip archived.", "success");
+          refresh();
+          if (typeof window.reloadTripList === "function") window.reloadTripList();
+        } catch (e) { toast("Archive failed: " + (e.message || e)); }
+      }
+
+      async function doUnarchive(t) {
+        try {
+          if (t._isCloud) await repo.unarchiveTrip(t.id);
+          else setLocalArchived(t.id, false);
+          toast("Trip restored.", "success");
+          refresh();
+          if (typeof window.reloadTripList === "function") window.reloadTripList();
+        } catch (e) { toast("Unarchive failed: " + (e.message || e)); }
+      }
+
+      async function doDelete(t, confirmMsg) {
+        if (!confirm(confirmMsg)) return;
+        try {
+          if (t._isCloud) await repo.deleteTrip(t.id);
+          else if (typeof window.deleteLocalTrip === "function") window.deleteLocalTrip(t.id);
+          toast("Trip deleted.", "success");
+          refresh();
+          if (typeof window.reloadTripList === "function") window.reloadTripList();
+        } catch (e) { toast("Delete failed: " + (e.message || e)); }
+      }
+
+      if (!active.length) {
         listEl.appendChild(el("div", {
           className: "hk-profile-empty",
-          textContent: "No cloud-synced trips yet. Create a trip while signed in, or sync an existing local trip."
+          textContent: "No trips yet. Create a trip, or sync an existing local trip to the cloud."
         }));
-        return;
+      } else {
+        for (const trip of active) {
+          listEl.appendChild(renderTripRow(trip, {
+            onOpen: openHandler,
+            onEdit: editHandler,
+            onExport: exportHandler,
+            onArchive: doArchive,
+            onDelete: (t) => doDelete(t, "Delete '" + (t.name || "this trip") + "'? This cannot be undone.")
+          }));
+        }
       }
 
-      for (const trip of trips) {
-        listEl.appendChild(renderTripRow(
-          trip,
-          (t) => {
-            closeOverlay(overlay);
-            if (typeof window.openTrip === "function") {
-              window.openTrip(t.id);
-            } else {
-              // No trip viewer on this page — redirect to demo app.
-              window.location.href = "/demo/?trip=" + encodeURIComponent(t.id);
-            }
-          },
-          async (t) => {
-            const name = prompt("Rename trip:", t.name || "");
-            if (name == null) return;
-            const trimmed = name.trim();
-            if (!trimmed || trimmed === t.name) return;
-            try {
-              await repo.renameTrip(t.id, trimmed);
-              toast("Trip renamed.", "success");
-              refresh();
-              if (typeof window.reloadTripList === "function") window.reloadTripList();
-            } catch (e) {
-              toast("Rename failed: " + (e.message || e));
-            }
-          },
-          async (t) => {
-            if (!confirm("Delete '" + (t.name || "this trip") + "'? This cannot be undone.")) return;
-            try {
-              await repo.deleteTrip(t.id);
-              toast("Trip deleted.", "success");
-              refresh();
-              if (typeof window.reloadTripList === "function") window.reloadTripList();
-            } catch (e) {
-              toast("Delete failed: " + (e.message || e));
-            }
-          },
-          (t) => {
-            try {
-              const blob = new Blob([JSON.stringify(t, null, 2)], { type: "application/json" });
-              const a = document.createElement("a");
-              a.href = URL.createObjectURL(blob);
-              a.download = (t.name || "trip").replace(/[^a-z0-9]+/gi, "-").toLowerCase() + ".json";
-              document.body.appendChild(a);
-              a.click();
-              setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
-            } catch (e) {
-              toast("Export failed: " + (e.message || e));
-            }
-          }
-        ));
+      if (!archived.length) {
+        archivedSection.style.display = "none";
+      } else {
+        archivedSection.style.display = "";
+        for (const trip of archived) {
+          archivedListEl.appendChild(renderTripRow(trip, {
+            onUnarchive: doUnarchive,
+            onDelete: (t) => doDelete(t, "Permanently delete '" + (t.name || "this trip") + "'? This cannot be undone.")
+          }));
+        }
       }
     }
 
