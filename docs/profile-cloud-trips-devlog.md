@@ -132,3 +132,19 @@ Added trip editing (metadata + per-waypoint photo CRUD, waypoints themselves sta
 - **Canonical photo URLs inside the editor.** `HikerTripsRepo.getTrip` returns `supabase://` paths (doesn't mutate with signed URLs). Thumbnails resolve lazily via `thumbUrlFor`. This makes diff computation on save unambiguous: every photo either has `_staged=true` (new) or is tracked in `removedPhotos` if the user removed it.
 - **Archive is soft delete.** Rows stay in the DB; Storage files stay too. Unarchive is a one-column update — cheap and reversible. Permanent removal still goes through Delete.
 - **Local trip archive uses the same `archivedAt` key.** Same filter logic works for both local and cloud trips.
+
+---
+
+## 2026-04-18 — Storage hardening: file size + MIME type
+
+Follow-up from a security review of the Storage policies. Cross-user isolation was already fine (private bucket + RLS on `(storage.foldername(name))[1] = auth.uid()`), but the `trip-photos` bucket had no server-side `file_size_limit` or `allowed_mime_types` — a client that bypassed `compressPhoto` could upload arbitrary binaries into its own prefix.
+
+### Created
+
+- `supabase/migrations/20260418000001_trip_photos_limits.sql` — updates the existing bucket with `file_size_limit = 10 MiB` and `allowed_mime_types = ['image/jpeg', 'image/png', 'image/webp']`.
+
+### Decisions
+
+- **10 MiB cap.** A 1200px JPEG at 0.8 quality is well under 1 MiB, but an unmodified phone-camera original can be 4–5 MiB. 10 MiB leaves headroom without letting a bad actor burn through their own quota too quickly.
+- **JPEG + PNG + WEBP.** The existing `compressPhoto` always outputs JPEG, but PNG (screenshots) and WEBP (modern captures) are reasonable image formats to allow without broadening attack surface. Any other MIME gets rejected at the Storage layer.
+- **Defence-in-depth, not new isolation.** The cross-user policies didn't change — this is purely a tighter perimeter for what a user can store under *their own* prefix. The attacker model "malicious user fills their own folder with arbitrary blobs" is now blocked at the bucket level even with a client-side bypass.
