@@ -132,6 +132,18 @@
       const avatar = el("button", { className: "hk-auth-avatar", textContent: initial, title: _user.email || "Account" });
       const dropdown = el("div", { className: "hk-auth-dropdown" });
       dropdown.appendChild(el("div", { className: "hk-auth-dropdown-email", textContent: _user.email || "User" }));
+
+      if (window.HikerProfile && typeof window.HikerProfile.show === "function") {
+        dropdown.appendChild(el("button", {
+          className: "hk-auth-dropdown-item",
+          textContent: "Profile",
+          onClick: () => {
+            dropdown.classList.remove("open");
+            window.HikerProfile.show();
+          }
+        }));
+      }
+
       dropdown.appendChild(el("button", {
         className: "hk-auth-dropdown-item danger",
         textContent: "Sign Out",
@@ -477,6 +489,8 @@
     getSession() { return _session; },
 
     getAccessToken() { return _session?.access_token || null; },
+
+    getClient() { return _supabase; },
 
     onAuthStateChange(fn) {
       _listeners.push(fn);
