@@ -2,5 +2,8 @@
   "name": "hikerscrolls-app",
   "version": "1.0.0",
   "private": true,
-  "description": "HikerScrolls — Beautiful Travel Journals"
+  "description": "HikerScrolls — Beautiful Travel Journals",
+  "dependencies": {
+    "@supabase/supabase-js": "^2"
+  }
 }

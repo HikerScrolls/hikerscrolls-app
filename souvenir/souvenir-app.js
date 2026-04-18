@@ -17,9 +17,12 @@ async function callAI(capability, payload, overrideProvider, overrideModel) {
   const provider = overrideProvider || routing[capability]?.provider || "gemini";
   const model = overrideModel || routing[capability]?.model || undefined; // server has defaults
   const userApiKey = settings.apiKeys?.[provider] || undefined;
+  const headers = { "Content-Type": "application/json" };
+  const authToken = typeof HikerAuth !== "undefined" && HikerAuth.getAccessToken ? HikerAuth.getAccessToken() : null;
+  if (authToken) headers["Authorization"] = "Bearer " + authToken;
   const resp = await fetch("/api/ai", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ capability, provider, model, userApiKey, payload })
   });
   if (!resp.ok) {
