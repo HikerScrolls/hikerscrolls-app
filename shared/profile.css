@@ -1,0 +1,243 @@
+/* HikerScrolls — Profile Modal Styles */
+
+.hk-profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  animation: hkProfileFadeIn 0.2s ease;
+}
+
+@keyframes hkProfileFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.hk-profile-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 560px;
+  max-width: 94vw;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: hkProfileSlideUp 0.25s ease;
+}
+
+@keyframes hkProfileSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hk-profile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.hk-profile-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.hk-profile-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.hk-profile-close:hover {
+  color: #475569;
+  background: #f1f5f9;
+}
+
+.hk-profile-body {
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ── Identity block ── */
+.hk-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 18px;
+}
+
+.hk-profile-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #1e293b;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.hk-profile-identity-text { flex: 1; min-width: 0; }
+
+.hk-profile-email {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hk-profile-since {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* ── Section ── */
+.hk-profile-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.hk-profile-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.hk-profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hk-profile-empty {
+  padding: 16px;
+  font-size: 13px;
+  color: #64748b;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px dashed #e2e8f0;
+  border-radius: 10px;
+}
+
+/* ── Trip row ── */
+.hk-profile-trip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.hk-profile-trip-info { flex: 1; min-width: 0; }
+
+.hk-profile-trip-name {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hk-profile-trip-meta {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hk-profile-trip-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Buttons ── */
+.hk-profile-btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.hk-profile-btn.ghost {
+  background: #fff;
+  color: #334155;
+  border-color: #e2e8f0;
+}
+
+.hk-profile-btn.ghost:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.hk-profile-btn.primary {
+  background: #1e293b;
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.hk-profile-btn.primary:hover {
+  background: #0f172a;
+}
+
+.hk-profile-btn.danger {
+  background: #fff;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.hk-profile-btn.danger:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+/* ── Responsive ── */
+@media (max-width: 520px) {
+  .hk-profile-trip {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hk-profile-trip-actions {
+    justify-content: flex-end;
+  }
+}

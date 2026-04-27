@@ -1383,7 +1383,12 @@ function showCreationWizard() {
   // ── Finish: Save Trip ──
   // ══════════════════════════════════════════════════════════
   async function finishWizard() {
-    const tripId = "trip-" + Date.now();
+    // Use a UUID when we can so signed-in sync can reuse the id as-is
+    // (the cloud `trips.id` column is `uuid`). Falls back to the legacy
+    // timestamp format for ancient browsers that lack `crypto.randomUUID`.
+    const tripId = (window.HikerTripsRepo?.newId)
+      ? window.HikerTripsRepo.newId()
+      : ((typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "trip-" + Date.now());
 
     // Build waypoints from sections or locations
     let waypoints;
@@ -1421,13 +1426,31 @@ function showCreationWizard() {
       id: tripId, version: 5, _isLocal: true, _created: Date.now(),
       file: tripId,
       name: config.name || "Untitled Trip",
-      date: config.date, region: config.region, description: config.description,
+      date: config.date, endDate: config.endDate, region: config.region, description: config.description,
       template: config.template, mapStyle: config.mapStyle,
       stats: gpxData ? { distanceKm: gpxData.totalDistanceKm, elevationGainM: gpxData.elevationGainM, elevationLossM: gpxData.elevationLossM } : {},
       gpxTrack: gpxData ? gpxData.trackPoints : [],
       waypoints
     };
 
+    // If signed in, save straight to cloud (photos → Storage, row → trips).
+    const signedIn = !!(window.HikerAuth?.getUser?.());
+    if (signedIn && window.HikerTripsRepo) {
+      try {
+        const cloudTrip = await window.HikerTripsRepo.syncLocalTripToCloud(trip, getPhotoFromIDB);
+        destroyMap();
+        overlay.remove();
+        tripsData = await loadTripIndex();
+        renderTripList();
+        openTrip(cloudTrip.id);
+        return;
+      } catch (err) {
+        console.warn("Cloud save failed — falling back to local:", err.message || err);
+        alert("Cloud save failed: " + (err.message || err) + "\nSaved locally instead.");
+      }
+    }
+
+    // Anonymous (or cloud save failed): persist locally.
     saveLocalTrip(trip);
     destroyMap();
     overlay.remove();
@@ -1438,6 +1461,310 @@ function showCreationWizard() {
   }
 
   render();
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// ══ Edit Trip Modal (metadata + photo CRUD, waypoints read-only)
+// ══════════════════════════════════════════════════════════════
+
+async function showEditModal(tripId) {
+  // Load canonical trip (imageUrls stay in `supabase://` or `idb://` form).
+  let trip = null;
+  const isUuid = /^[0-9a-f-]{36}$/i.test(tripId);
+  if (isUuid && window.HikerTripsRepo?.getTrip) {
+    try { trip = await window.HikerTripsRepo.getTrip(tripId); } catch (e) { /* fall through */ }
+  }
+  if (!trip) {
+    trip = getLocalTrips().find(t => t.id === tripId || t.file === tripId) || null;
+  }
+  if (!trip) { alert("Trip not found."); return; }
+
+  const draft = JSON.parse(JSON.stringify(trip));
+  // Strip volatile runtime flags so they don't leak into the saved row.
+  delete draft._isCloud; delete draft._isLocal; delete draft.lat; delete draft.lng;
+
+  const isCloud = trip._isCloud === true;
+  const removedPhotos = []; // { imageUrl, id }
+  const blobUrlCleanup = []; // URL strings to revoke on close
+
+  function revokeBlobs() {
+    for (const u of blobUrlCleanup) { try { URL.revokeObjectURL(u); } catch {} }
+    blobUrlCleanup.length = 0;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "hj-wizard-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;";
+  const modal = document.createElement("div");
+  modal.className = "hj-wizard-modal hj-edit-modal";
+  modal.style.cssText = "background:white;border-radius:16px;max-width:720px;width:95%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;";
+  overlay.appendChild(modal);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  function onKey(e) { if (e.key === "Escape") close(); }
+  document.addEventListener("keydown", onKey);
+
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    revokeBlobs();
+    overlay.remove();
+  }
+
+  // ── Header ──
+  const header = document.createElement("div");
+  header.className = "hj-wizard-header";
+  header.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #e2e8f0;";
+  header.innerHTML = `
+    <h2 style="margin:0;font-size:1.05rem;">Edit Trip</h2>
+    <button class="hj-wizard-close" style="background:none;border:none;font-size:1.5rem;cursor:pointer;line-height:1;color:#64748b;">&times;</button>
+  `;
+  header.querySelector(".hj-wizard-close").addEventListener("click", close);
+  modal.appendChild(header);
+
+  // ── Body ──
+  const body = document.createElement("div");
+  body.className = "hj-wizard-body";
+  body.style.cssText = "display:flex;flex-direction:column;gap:16px;overflow-y:auto;padding:16px 20px;";
+  modal.appendChild(body);
+
+  // Metadata form
+  const meta = document.createElement("div");
+  meta.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;";
+  meta.innerHTML = `
+    <label style="display:flex;flex-direction:column;gap:4px;grid-column:1/-1;font-size:12px;color:#475569;">
+      Name
+      <input type="text" data-field="name" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569;">
+      Region
+      <input type="text" data-field="region" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569;">
+      Start date
+      <input type="date" data-field="date" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569;">
+      End date
+      <input type="date" data-field="endDate" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569;">
+      Template
+      <select data-field="template" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
+        <option value="scrollytelling">Scrollytelling</option>
+        <option value="scrapbook">Scrapbook</option>
+        <option value="illustrated">Illustrated</option>
+      </select>
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;grid-column:1/-1;font-size:12px;color:#475569;">
+      Description
+      <textarea data-field="description" rows="3" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;resize:vertical;"></textarea>
+    </label>
+  `;
+  // Map style select (dynamic from MAP_STYLES, which is defined below)
+  const mapStyleLabel = document.createElement("label");
+  mapStyleLabel.style.cssText = "display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569;";
+  mapStyleLabel.innerHTML = "Map style";
+  const mapStyleSelect = document.createElement("select");
+  mapStyleSelect.dataset.field = "mapStyle";
+  mapStyleSelect.style.cssText = "padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;";
+  for (const [key, info] of Object.entries(MAP_STYLES)) {
+    const opt = document.createElement("option");
+    opt.value = key; opt.textContent = info.name || key;
+    mapStyleSelect.appendChild(opt);
+  }
+  mapStyleLabel.appendChild(mapStyleSelect);
+  meta.appendChild(mapStyleLabel);
+
+  // Populate inputs from draft
+  for (const field of ["name", "region", "date", "endDate", "description", "template", "mapStyle"]) {
+    const input = meta.querySelector(`[data-field="${field}"]`);
+    if (!input) continue;
+    input.value = draft[field] || (field === "template" ? "scrollytelling" : field === "mapStyle" ? "opentopomap" : "");
+    input.addEventListener("input", () => {
+      draft[field] = input.value;
+    });
+    input.addEventListener("change", () => {
+      draft[field] = input.value;
+    });
+  }
+  body.appendChild(meta);
+
+  // Photos per waypoint
+  const photosSection = document.createElement("div");
+  photosSection.style.cssText = "display:flex;flex-direction:column;gap:14px;";
+  const photosHeader = document.createElement("div");
+  photosHeader.style.cssText = "font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-top:6px;";
+  photosHeader.textContent = "Photos (Waypoints are read-only)";
+  photosSection.appendChild(photosHeader);
+
+  async function thumbUrlFor(ph) {
+    if (ph._blobUrl) return ph._blobUrl;
+    const url = ph.imageUrl || "";
+    if (url.startsWith("idb://")) {
+      return await getPhotoBlobUrl(url.slice("idb://".length));
+    }
+    if (url.startsWith("supabase://") && window.HikerTripsRepo?.getPhotoSignedUrl) {
+      return await window.HikerTripsRepo.getPhotoSignedUrl(url.slice("supabase://".length));
+    }
+    return url || null;
+  }
+
+  function renderWaypoint(wp, wpIndex) {
+    const card = document.createElement("div");
+    card.style.cssText = "border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;background:#f8fafc;";
+    const title = document.createElement("div");
+    title.style.cssText = "font-size:13px;font-weight:600;color:#1e293b;";
+    title.textContent = wp.sectionTitle || wp.title || `Waypoint ${wpIndex + 1}`;
+    card.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;";
+    card.appendChild(grid);
+
+    function renderTile(ph, photoIndex) {
+      const tile = document.createElement("div");
+      tile.style.cssText = "position:relative;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:#e2e8f0;";
+      const img = document.createElement("img");
+      img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+      thumbUrlFor(ph).then((u) => { if (u) img.src = u; });
+      tile.appendChild(img);
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.textContent = "×";
+      removeBtn.title = "Remove photo";
+      removeBtn.style.cssText = "position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(15,23,42,0.75);color:white;border:none;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;";
+      removeBtn.addEventListener("click", () => {
+        // Track existing (non-staged) photos for later cleanup.
+        if (!ph._staged) removedPhotos.push({ imageUrl: ph.imageUrl, id: ph.id });
+        wp.photos.splice(photoIndex, 1);
+        refreshGrid();
+      });
+      tile.appendChild(removeBtn);
+      return tile;
+    }
+
+    function refreshGrid() {
+      grid.innerHTML = "";
+      (wp.photos || []).forEach((ph, i) => grid.appendChild(renderTile(ph, i)));
+      // "+ Add photos" tile
+      const addTile = document.createElement("label");
+      addTile.style.cssText = "display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;border:2px dashed #cbd5e1;border-radius:8px;cursor:pointer;color:#64748b;font-size:12px;text-align:center;";
+      addTile.textContent = "+ Add";
+      const input = document.createElement("input");
+      input.type = "file"; input.accept = "image/*"; input.multiple = true; input.style.display = "none";
+      addTile.appendChild(input);
+      input.addEventListener("change", async () => {
+        const files = Array.from(input.files || []);
+        input.value = "";
+        for (const file of files) {
+          try {
+            const buf = await compressPhoto(file);
+            const blobUrl = URL.createObjectURL(new Blob([buf], { type: "image/jpeg" }));
+            blobUrlCleanup.push(blobUrl);
+            const id = "photo-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+            wp.photos = wp.photos || [];
+            wp.photos.push({
+              id,
+              imageUrl: blobUrl,
+              title: file.name,
+              _staged: true,
+              _buf: buf,
+              _blobUrl: blobUrl
+            });
+          } catch (e) {
+            console.warn("Photo add failed:", file.name, e);
+          }
+        }
+        refreshGrid();
+      });
+      grid.appendChild(addTile);
+    }
+
+    refreshGrid();
+    return card;
+  }
+
+  (draft.waypoints || []).forEach((wp, i) => photosSection.appendChild(renderWaypoint(wp, i)));
+  if (!draft.waypoints || !draft.waypoints.length) {
+    const none = document.createElement("div");
+    none.style.cssText = "color:#94a3b8;font-size:13px;padding:16px;text-align:center;border:1px dashed #e2e8f0;border-radius:8px;";
+    none.textContent = "This trip has no waypoints to attach photos to.";
+    photosSection.appendChild(none);
+  }
+  body.appendChild(photosSection);
+
+  // ── Footer ──
+  const footer = document.createElement("div");
+  footer.className = "hj-wizard-footer";
+  footer.style.cssText = "display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid #e2e8f0;";
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "hj-btn-secondary"; cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", close);
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "hj-btn-primary"; saveBtn.textContent = "Save";
+  footer.appendChild(cancelBtn); footer.appendChild(saveBtn);
+  modal.appendChild(footer);
+
+  saveBtn.addEventListener("click", async () => {
+    saveBtn.disabled = true;
+    cancelBtn.disabled = true;
+    const original = saveBtn.textContent;
+    saveBtn.textContent = "Saving...";
+    try {
+      // 1) Upload staged (new) photos → rewrite imageUrl to canonical form.
+      for (const wp of (draft.waypoints || [])) {
+        for (const ph of (wp.photos || [])) {
+          if (!ph._staged || !ph._buf) continue;
+          if (isCloud && window.HikerTripsRepo?.uploadPhoto) {
+            const path = await window.HikerTripsRepo.uploadPhoto(draft.id, ph.id, ph._buf);
+            ph.imageUrl = "supabase://" + path;
+          } else {
+            await savePhotoToIDB(ph.id, ph._buf);
+            ph.imageUrl = "idb://" + ph.id;
+          }
+          delete ph._staged; delete ph._buf; delete ph._blobUrl;
+        }
+      }
+
+      // 2) Delete removed photos from their backing store.
+      const pathsToDrop = [];
+      for (const rm of removedPhotos) {
+        const url = rm.imageUrl || "";
+        if (url.startsWith("idb://")) {
+          try { await deletePhotoFromIDB(url.slice("idb://".length)); } catch {}
+        } else if (url.startsWith("supabase://")) {
+          pathsToDrop.push(url.slice("supabase://".length));
+        }
+      }
+      if (pathsToDrop.length && window.HikerTripsRepo?.removePhotos) {
+        await window.HikerTripsRepo.removePhotos(pathsToDrop);
+      }
+
+      // 3) Persist the updated trip row.
+      if (isCloud && window.HikerTripsRepo?.saveTrip) {
+        await window.HikerTripsRepo.saveTrip(draft);
+      } else {
+        // Local trip: strip runtime-only fields and persist.
+        const toSave = { ...draft, _isLocal: true };
+        saveLocalTrip(toSave);
+      }
+
+      close();
+      tripsData = await loadTripIndex();
+      renderTripList();
+      if (globalMap) globalMap.loadTrips(_activeTrips());
+      if (activeFile === draft.id || activeFile === draft.file) {
+        openTrip(draft.id);
+      }
+    } catch (e) {
+      saveBtn.disabled = false;
+      cancelBtn.disabled = false;
+      saveBtn.textContent = original;
+      alert("Save failed: " + (e.message || e));
+    }
+  });
+
+  document.body.appendChild(overlay);
 }
 
 
@@ -4836,11 +5163,39 @@ let currentSort = "date";
 let currentSearch = "";
 let activeFile = null;
 
+function _deriveTripPinCoords(trip) {
+  if (typeof trip.lat === "number" && typeof trip.lng === "number") return trip;
+  // Prefer a waypoint with coordinates; fall back to the first GPX point.
+  const wp = (trip.waypoints || []).find(w => typeof w.lat === "number" && typeof w.lng === "number");
+  if (wp) {
+    return { ...trip, lat: wp.lat, lng: wp.lng };
+  }
+  const pt = (trip.gpxTrack || []).find(p => typeof p.lat === "number" && typeof p.lng === "number");
+  if (pt) {
+    return { ...trip, lat: pt.lat, lng: pt.lng };
+  }
+  return trip;
+}
+
 async function loadTripIndex() {
   let serverTrips = [];
   try { const resp = await fetch("data/trips.json"); serverTrips = await resp.json(); } catch (e) {}
-  const localTrips = getLocalTrips();
-  return [...localTrips, ...serverTrips];
+  const localTrips = getLocalTrips()
+    .map(t => ({ ...t, _isLocal: true, _isCloud: false }))
+    .map(_deriveTripPinCoords);
+
+  let cloudTrips = [];
+  if (window.HikerAuth?.getUser?.() && window.HikerTripsRepo) {
+    try {
+      const raw = await window.HikerTripsRepo.listTrips();
+      cloudTrips = raw.map(_deriveTripPinCoords);
+    } catch (e) {
+      console.warn("Failed to list cloud trips:", e.message || e);
+    }
+  }
+
+  // Cloud first (user's own, freshest), then local, then server demos.
+  return [...cloudTrips, ...localTrips, ...serverTrips];
 }
 
 async function loadTripData(filename) {
@@ -4855,14 +5210,19 @@ function formatDate(dateStr) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function _activeTrips() {
+  return (tripsData || []).filter(t => !t.archivedAt);
+}
+
 function renderTripList() {
   const container = document.getElementById("trip-list");
   if (!container || !tripsData) return;
 
-  let filtered = tripsData;
+  const active = _activeTrips();
+  let filtered = active;
   if (currentSearch.trim()) {
     const q = currentSearch.toLowerCase();
-    filtered = tripsData.filter(t =>
+    filtered = active.filter(t =>
       (t.name || "").toLowerCase().includes(q) ||
       (t.region || "").toLowerCase().includes(q) ||
       (t.date || "").includes(q)
@@ -4932,24 +5292,116 @@ function renderTripList() {
       info.appendChild(meta);
     }
 
-    // Delete button for local trips
-    if (trip._isLocal) {
+    // Ownership badge (cloud / local) — shown only when signed in
+    const signedIn = !!(window.HikerAuth?.getUser?.());
+    if (trip._isCloud || (trip._isLocal && signedIn)) {
+      const badge = document.createElement("span");
+      badge.textContent = trip._isCloud ? "Cloud" : "Local";
+      badge.style.cssText = "position:absolute;top:6px;left:6px;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;color:#fff;z-index:2;" +
+        (trip._isCloud
+          ? "background:rgba(16,185,129,0.85);"
+          : "background:rgba(100,116,139,0.85);");
+      card.style.position = "relative";
+      card.appendChild(badge);
+    }
+
+    // Per-card hover actions (stacked top-right): edit, archive, delete
+    if (trip._isLocal || trip._isCloud) {
+      card.style.position = "relative";
+      const hoverButtons = [];
+
+      const editBtn = document.createElement("button");
+      editBtn.textContent = "\u270E"; // pencil
+      editBtn.title = "Edit trip";
+      editBtn.style.cssText = "position:absolute;top:6px;right:58px;width:22px;height:22px;border-radius:50%;background:rgba(51,65,85,0.85);color:white;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;z-index:2;";
+      editBtn.onclick = (e) => {
+        e.stopPropagation();
+        showEditModal(trip.id);
+      };
+      card.appendChild(editBtn);
+      hoverButtons.push(editBtn);
+
+      const archiveBtn = document.createElement("button");
+      archiveBtn.textContent = "\u25A3"; // box
+      archiveBtn.title = "Archive trip";
+      archiveBtn.style.cssText = "position:absolute;top:6px;right:32px;width:22px;height:22px;border-radius:50%;background:rgba(100,116,139,0.85);color:white;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;z-index:2;";
+      archiveBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          if (trip._isCloud && window.HikerTripsRepo) {
+            await window.HikerTripsRepo.archiveTrip(trip.id);
+          } else {
+            const all = getLocalTrips();
+            const idx = all.findIndex(t => t.id === trip.id);
+            if (idx >= 0) {
+              all[idx] = { ...all[idx], archivedAt: new Date().toISOString() };
+              saveLocalTrips(all);
+            }
+          }
+          tripsData = await loadTripIndex();
+          renderTripList();
+          if (globalMap) globalMap.loadTrips(_activeTrips());
+          if (activeFile === trip.file) backToList();
+        } catch (err) {
+          alert("Archive failed: " + (err.message || err));
+        }
+      };
+      card.appendChild(archiveBtn);
+      hoverButtons.push(archiveBtn);
+
       const delBtn = document.createElement("button");
       delBtn.textContent = "\u00d7";
+      delBtn.title = "Delete trip";
       delBtn.style.cssText = "position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(239,68,68,0.8);color:white;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;z-index:2;";
       delBtn.onclick = async (e) => {
         e.stopPropagation();
-        if (confirm("Delete '" + trip.name + "'? This cannot be undone.")) {
-          deleteLocalTrip(trip.id);
+        if (!confirm("Delete '" + trip.name + "'? This cannot be undone.")) return;
+        try {
+          if (trip._isCloud && window.HikerTripsRepo) {
+            await window.HikerTripsRepo.deleteTrip(trip.id);
+          } else {
+            deleteLocalTrip(trip.id);
+          }
           tripsData = await loadTripIndex();
           renderTripList();
           if (activeFile === trip.file) backToList();
+        } catch (err) {
+          alert("Delete failed: " + (err.message || err));
+        }
+      };
+      card.appendChild(delBtn);
+      hoverButtons.push(delBtn);
+
+      card.addEventListener("mouseenter", () => { hoverButtons.forEach(b => b.style.opacity = "1"); });
+      card.addEventListener("mouseleave", () => { hoverButtons.forEach(b => b.style.opacity = "0"); });
+    }
+
+    // Sync-to-cloud button for local trips (only when signed in)
+    if (trip._isLocal && signedIn && window.HikerTripsRepo) {
+      const syncBtn = document.createElement("button");
+      syncBtn.textContent = "Sync";
+      syncBtn.title = "Sync this trip to the cloud";
+      syncBtn.style.cssText = "position:absolute;bottom:6px;right:6px;padding:3px 8px;border-radius:10px;background:rgba(16,185,129,0.9);color:white;border:none;font-size:10px;font-weight:600;cursor:pointer;opacity:0;transition:opacity 0.2s;z-index:2;";
+      syncBtn.onclick = async (e) => {
+        e.stopPropagation();
+        const original = syncBtn.textContent;
+        syncBtn.disabled = true;
+        syncBtn.textContent = "Syncing…";
+        try {
+          await window.HikerTripsRepo.syncLocalTripToCloud(trip, getPhotoFromIDB);
+          deleteLocalTrip(trip.id);
+          tripsData = await loadTripIndex();
+          renderTripList();
+        } catch (err) {
+          alert("Sync failed: " + (err.message || err));
+          syncBtn.textContent = original;
+          syncBtn.disabled = false;
         }
       };
       card.style.position = "relative";
-      card.addEventListener("mouseenter", () => { delBtn.style.opacity = "1"; });
-      card.addEventListener("mouseleave", () => { delBtn.style.opacity = "0"; });
-      card.appendChild(delBtn);
+      card.addEventListener("mouseenter", () => { syncBtn.style.opacity = "1"; });
+      card.addEventListener("mouseleave", () => { syncBtn.style.opacity = "0"; });
+      card.appendChild(syncBtn);
     }
 
     card.appendChild(info);
@@ -5030,7 +5482,7 @@ function showGlobalMap() {
   if (globalMap) globalMap.destroy();
   const mapContainer = document.getElementById("global-map");
   globalMap = new GlobalMapViewer(mapContainer);
-  globalMap.loadTrips(tripsData);
+  globalMap.loadTrips(_activeTrips());
   renderTripList();
 }
 
@@ -5040,10 +5492,35 @@ async function openTrip(filename) {
   document.getElementById("global-map").style.display = "none";
   const container = document.getElementById("trip-view");
   container.style.display = "";
-  // Check if it's a local trip
+
+  // Check if it's a cloud trip (loaded in tripsData when signed in)
+  let cloudTrip = (tripsData || []).find(t => t._isCloud && (t.id === filename || t.file === filename));
   const localTrip = getLocalTrips().find(t => t.id === filename || t.file === filename);
+
+  // Direct-link fallback: a UUID-looking id not in the cached list may still
+  // be a cloud trip (e.g. opened via `?trip=<id>` before auth finished).
+  if (!cloudTrip && !localTrip && window.HikerTripsRepo?.getTrip && /^[0-9a-f-]{36}$/i.test(filename)) {
+    try {
+      cloudTrip = await window.HikerTripsRepo.getTrip(filename);
+    } catch (e) { /* ignore, fall through to demo fetch */ }
+  }
+
   let data;
-  if (localTrip) {
+  if (cloudTrip) {
+    // Fetch fresh copy (signed URLs + latest waypoints) then deep-clone.
+    let fresh = cloudTrip;
+    try {
+      if (window.HikerTripsRepo?.getTrip) {
+        const refreshed = await window.HikerTripsRepo.getTrip(cloudTrip.id);
+        if (refreshed) fresh = refreshed;
+      }
+    } catch (e) { /* fall back to cached */ }
+    data = JSON.parse(JSON.stringify(fresh));
+    data.file = data.id;
+    if (window.HikerTripsRepo?.resolvePhotoUrls) {
+      await window.HikerTripsRepo.resolvePhotoUrls(data);
+    }
+  } else if (localTrip) {
     data = localTrip;
     // Resolve idb:// photo URLs to blob URLs
     for (const wp of (data.waypoints || [])) {
@@ -5102,6 +5579,28 @@ function backToList() {
   showGlobalMap();
 }
 
+// Expose helpers the Profile modal calls.
+window.openTrip = openTrip;
+window.showCreationWizard = showCreationWizard;
+window.editTrip = showEditModal;
+window.getLocalTrips = getLocalTrips;
+window.saveLocalTrips = saveLocalTrips;
+window.deleteLocalTrip = deleteLocalTrip;
+window.reloadTripList = async function reloadTripList() {
+  tripsData = await loadTripIndex();
+  renderTripList();
+  if (globalMap) globalMap.loadTrips(_activeTrips());
+};
+
+function _consumeQueryParam(name) {
+  const url = new URL(window.location);
+  const value = url.searchParams.get(name);
+  if (value == null) return null;
+  url.searchParams.delete(name);
+  window.history.replaceState({}, "", url.pathname + (url.searchParams.toString() ? "?" + url.searchParams.toString() : "") + url.hash);
+  return value;
+}
+
 // === Init ===
 document.addEventListener("DOMContentLoaded", async () => {
   try {
@@ -5109,6 +5608,36 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupSidebar();
     renderTripList();
     showGlobalMap();
+
+    // Deep-link handling: `?new=1` auto-opens the wizard; `?trip=<id>` opens a
+    // trip; `?edit=<id>` opens the edit modal.
+    const wantsNew = _consumeQueryParam("new") === "1";
+    const wantsTripId = _consumeQueryParam("trip");
+    const wantsEditId = _consumeQueryParam("edit");
+    if (wantsNew) {
+      showCreationWizard();
+    } else if (wantsEditId) {
+      showEditModal(wantsEditId);
+    } else if (wantsTripId) {
+      openTrip(wantsTripId);
+    }
+
+    // Refresh trip list when the user signs in or out so cloud trips appear/disappear.
+    if (window.HikerAuth?.onAuthStateChange) {
+      let lastUserId = window.HikerAuth.getUser?.()?.id || null;
+      window.HikerAuth.onAuthStateChange(async (user) => {
+        const nextUserId = user?.id || null;
+        if (nextUserId === lastUserId) return;
+        lastUserId = nextUserId;
+        try {
+          tripsData = await loadTripIndex();
+          renderTripList();
+          if (globalMap) globalMap.loadTrips(_activeTrips());
+        } catch (e) {
+          console.warn("Reload on auth change failed:", e.message || e);
+        }
+      });
+    }
   } catch (err) {
     console.error("Failed to load trip index:", err);
   }
